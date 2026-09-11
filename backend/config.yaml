@@ -1,0 +1,24 @@
+elastic:
+  hosts:
+    - "https://localhost:9200"
+  # api_key is intentionally NOT set here -- see .env.example. Leave hosts
+  # empty ([]) if you don't have Elastic wired up yet; the app runs fine
+  # in CSV-only mode.
+  index: "suricata-*"
+  poll_interval_seconds: 3
+  field_mapping:
+    timestamp: "@timestamp"
+    src_lat: "source.geo.location.lat"
+    src_lon: "source.geo.location.lon"
+    dst_lat: "destination.geo.location.lat"
+    dst_lon: "destination.geo.location.lon"
+    src_ip: "source.ip"
+    dst_ip: "destination.ip"
+    severity: "alert.severity"   # must resolve to critical / major / high
+
+server:
+  host: "127.0.0.1"
+  port: 8000
+
+buffer:
+  window_minutes: 10
