@@ -4,14 +4,17 @@ import { ArcEngine } from "./arcs";
 import { connectTrafficSocket } from "./wsClient";
 import { appendLogEntry } from "./eventLog";
 import { wireControls } from "./controls";
+import { wireMapZoom } from "./mapZoom";
 import { Severity } from "./types";
 
 renderWorldMap(document.getElementById("map-bg")!);
 
 const wrap = document.getElementById("map-wrap")!;
+const mapViewport = document.getElementById("map-viewport")!;
 const canvas = document.getElementById("fx") as HTMLCanvasElement;
 const engine = new ArcEngine(canvas, wrap);
 wireControls(engine);
+wireMapZoom(mapViewport, wrap);
 
 const logList = document.getElementById("log-list")!;
 const statEps = document.getElementById("stat-eps")!;

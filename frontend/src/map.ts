@@ -1,4 +1,6 @@
 import { WORLD_LAND_PATH } from "./world-path";
+import { COUNTRY_LABELS } from "./country-labels";
+import { CITY_LABELS } from "./city-labels";
 
 /** Static markers baked into the base map SVG -- unlike ArcEngine's canvas
  *  layer these don't move, fade, or get cleared per-frame. Add more pins
@@ -36,6 +38,35 @@ function poiMarker(poi: PointOfInterest): string {
   return `<g class="poi-star" transform="translate(${x},${y}) scale(0.6)"><title>${poi.label}</title><path d="${STAR_PATH}"/></g>`;
 }
 
+/** Minimal escaping for text pulled from the baked country/city datasets --
+ *  we don't control that data's exact contents (it's generated from
+ *  third-party npm packages, see mapgen/gen-labels.js), so it's not safe
+ *  to interpolate directly into the SVG string. */
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Country name labels -- always visible, at every zoom level (they fade
+ *  out somewhat at deeper zoom tiers via CSS -- see style.css -- so they
+ *  don't dominate the view once the user has zoomed in on a city). */
+function countryLabelMarkup(name: string, lat: number, lon: number): string {
+  const [x, y] = toSvgCoords(lat, lon);
+  return `<text class="label-country" x="${x}" y="${y}">${escapeXml(name)}</text>`;
+}
+
+/** City labels, revealed progressively by tier as the user zooms in (see
+ *  mapZoom.ts's zoom-tier-N classes and style.css's .label-city rules) --
+ *  tier 1 is the ~40 largest world cities, tier 3 the least prominent of
+ *  the top 500. This is a population-ranked approximation of Google
+ *  Maps-style label decluttering, not true collision detection -- dense
+ *  regions (e.g. Europe) can still show some overlap once tier 3 is on. */
+function cityLabelMarkup(name: string, lat: number, lon: number, tier: 1 | 2 | 3): string {
+  const [x, y] = toSvgCoords(lat, lon);
+  const tx = (x + 1.6).toFixed(2);
+  const ty = (y + 1.1).toFixed(2);
+  return `<g class="label-city tier-${tier}"><circle cx="${x}" cy="${y}" r="0.9"/><text x="${tx}" y="${ty}">${escapeXml(name)}</text></g>`;
+}
+
 export function renderWorldMap(container: HTMLElement): void {
   // "meet" (scale-to-fit, letterboxed) -- not "slice" -- so the whole
   // globe is always visible. "slice" (crop-to-fill) sounds nicer but on
@@ -44,6 +75,8 @@ export function renderWorldMap(container: HTMLElement): void {
   container.innerHTML = `<svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
     <path class="land" d="${WORLD_LAND_PATH}"/>
     ${POINTS_OF_INTEREST.map(poiMarker).join("")}
+    ${COUNTRY_LABELS.map((c) => countryLabelMarkup(c.name, c.lat, c.lon)).join("")}
+    ${CITY_LABELS.map((c) => cityLabelMarkup(c.name, c.lat, c.lon, c.tier)).join("")}
   </svg>`;
 }
 

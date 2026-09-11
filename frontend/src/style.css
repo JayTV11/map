@@ -16,12 +16,47 @@
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;height:100%;overflow:hidden;}
 #app{display:flex;height:100vh;width:100vw;}
 
-#map-wrap{position:relative;flex:1;min-width:0;background:radial-gradient(ellipse at 50% 40%, #0d1826 0%, #070b12 70%);overflow:hidden;}
+#map-wrap{position:relative;flex:1;min-width:0;background:radial-gradient(ellipse at 50% 40%, #0d1826 0%, #070b12 70%);overflow:hidden;touch-action:none;}
+#map-wrap.zoomed{cursor:grab;}
+#map-wrap.zoomed.panning{cursor:grabbing;}
+/* Deliberately NOT will-change:transform -- that hints Chrome to cache
+   this layer as a fixed-resolution GPU texture and stretch it for zoom,
+   which blurs the SVG map/labels badly at high zoom. Letting it repaint
+   normally keeps text and coastlines sharp at any zoom level; panning is
+   event-driven (not a 60fps loop) so the repaint cost is negligible. */
+#map-viewport{position:absolute;inset:0;transform-origin:0 0;}
 #map-bg{position:absolute;inset:0;width:100%;height:100%;}
 #map-bg svg{width:100%;height:100%;display:block;}
 #map-bg path.land{fill:var(--map-fill);stroke:var(--map-stroke);stroke-width:0.6;}
 .poi-star path{fill:var(--accent);stroke:#04101c;stroke-width:1;}
 #fx{position:absolute;inset:0;width:100%;height:100%;}
+
+/* Country/city name labels -- font-size is in the map's own 1000x500 SVG
+   units, so these visually grow as the user zooms in (the CSS transform
+   in mapZoom.ts scales the whole viewport). Sizes are chosen so each tier
+   looks reasonable both right when it's revealed and at max zoom. */
+.label-country{fill:var(--text-dim);font-size:5px;font-weight:600;letter-spacing:0.3px;
+  text-transform:uppercase;text-anchor:middle;paint-order:stroke;stroke:var(--bg);
+  stroke-width:1.4px;stroke-linejoin:round;pointer-events:none;transition:opacity .15s;}
+#map-wrap.zoom-tier-2 .label-country{opacity:0.5;}
+#map-wrap.zoom-tier-3 .label-country{opacity:0.18;}
+
+.label-city{pointer-events:none;display:none;}
+.label-city circle{fill:var(--accent);}
+.label-city text{fill:var(--text);font-size:3px;paint-order:stroke;stroke:var(--bg);
+  stroke-width:1px;stroke-linejoin:round;}
+.label-city.tier-2 text{font-size:2.4px;}
+.label-city.tier-3 text{font-size:1.8px;}
+#map-wrap.zoom-tier-1 .label-city.tier-1{display:block;}
+#map-wrap.zoom-tier-2 .label-city.tier-2{display:block;}
+#map-wrap.zoom-tier-3 .label-city.tier-3{display:block;}
+
+#zoom-controls{position:absolute;top:16px;right:20px;z-index:5;display:flex;flex-direction:column;gap:6px;}
+#zoom-controls button{width:30px;height:30px;background:rgba(13,20,32,0.7);border:1px solid var(--panel-border);
+  color:var(--text);border-radius:6px;font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;backdrop-filter:blur(4px);transition:background .15s;padding:0;}
+#zoom-controls button:hover{background:#1c2c44;}
+#zoom-controls button:active{background:#213453;}
 
 #topbar{position:absolute;top:0;left:0;right:0;padding:16px 20px;display:flex;align-items:baseline;gap:10px;
   background:linear-gradient(180deg, rgba(7,11,18,0.85) 0%, rgba(7,11,18,0) 100%);pointer-events:none;z-index:5;}

@@ -10,10 +10,17 @@
     <div id="map-wrap">
       <div id="topbar">
         <h1>Traffic Map</h1>
-        <span class="sub">live &amp; simulated traffic by geolocation</span>
+        <span class="sub">live &amp; simulated traffic by geolocation &middot; scroll to zoom, drag to pan</span>
       </div>
-      <div id="map-bg"></div>
-      <canvas id="fx"></canvas>
+      <div id="map-viewport">
+        <div id="map-bg"></div>
+        <canvas id="fx"></canvas>
+      </div>
+      <div id="zoom-controls">
+        <button type="button" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+        <button type="button" id="zoom-reset" title="Reset view" aria-label="Reset view">&#10226;</button>
+        <button type="button" id="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      </div>
       <div id="stats-strip">
         <div class="stat"><div class="v" id="stat-eps">0.0</div><div class="l">events / sec</div></div>
         <div class="stat"><div class="v" id="stat-active">0</div><div class="l">active arcs</div></div>
