@@ -20,6 +20,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 #map-bg{position:absolute;inset:0;width:100%;height:100%;}
 #map-bg svg{width:100%;height:100%;display:block;}
 #map-bg path.land{fill:var(--map-fill);stroke:var(--map-stroke);stroke-width:0.6;}
+.poi-star path{fill:var(--accent);stroke:#04101c;stroke-width:1;}
 #fx{position:absolute;inset:0;width:100%;height:100%;}
 
 #topbar{position:absolute;top:0;left:0;right:0;padding:16px 20px;display:flex;align-items:baseline;gap:10px;
