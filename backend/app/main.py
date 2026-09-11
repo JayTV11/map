@@ -33,6 +33,13 @@ async def lifespan(app: FastAPI):
         elastic_source = ElasticPollSource(config["elastic"])
         _background_tasks.append(asyncio.create_task(elastic_source.run(broadcaster.publish)))
 
+    # Keeps the map visually alive on sparse real Elastic traffic by
+    # re-firing recent buffered hits -- see buffer.replay_enabled in
+    # config.yaml and Broadcaster._replay_loop in broadcast.py.
+    replay_task = broadcaster.start_replay_loop()
+    if replay_task:
+        _background_tasks.append(replay_task)
+
     yield
 
     for task in _background_tasks:

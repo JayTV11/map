@@ -32,6 +32,8 @@ engine.onActiveCountChange = (n) => { statActive.textContent = String(n); };
 
 connectTrafficSocket((event) => {
   engine.spawn(event);
+  if (event.is_replay) return; // renders identically, but stays out of the log/counters
+
   appendLogEntry(logList, event);
 
   total += 1;

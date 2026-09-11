@@ -34,3 +34,9 @@ class TrafficEvent(BaseModel):
     dst_ip: Optional[str] = None
 
     source: SourceKind
+
+    # True when this is a re-fire of a real event still within the buffer's
+    # lookback window (see Broadcaster._replay_loop in broadcast.py), rather
+    # than a genuinely new occurrence. The frontend renders it identically
+    # but skips the event log and stat counters for it -- see main.ts.
+    is_replay: bool = False

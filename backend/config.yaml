@@ -1,5 +1,9 @@
 elastic:
-  hosts: []
+  hosts:
+    - "https://localhost:9200"
+  # api_key is intentionally NOT set here -- see .env.example. Leave hosts
+  # empty ([]) if you don't have Elastic wired up yet; the app runs fine
+  # in CSV-only mode.
   index: "suricata-*"
   poll_interval_seconds: 3
   field_mapping:
@@ -10,11 +14,13 @@ elastic:
     dst_lon: "destination.geo.location.lon"
     src_ip: "source.ip"
     dst_ip: "destination.ip"
-    severity: "alert.severity"
+    severity: "alert.severity"   # must resolve to critical / major / high
 
 server:
   host: "127.0.0.1"
   port: 8000
 
 buffer:
-  window_minutes: 10
+  window_minutes: 10       # how old a real Elastic hit can be and still replay (see below)
+  replay_enabled: true     # keep re-firing recent real hits so the map doesn't go blank on sparse traffic
+  replay_interval_seconds: 5   # how often to fire a replayed hit

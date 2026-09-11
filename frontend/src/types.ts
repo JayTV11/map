@@ -12,6 +12,7 @@ export interface TrafficEvent {
   src_ip: string | null;
   dst_ip: string | null;
   source: "csv" | "elastic";
+  is_replay: boolean;
 }
 
 export const SEVERITY_COLOR: Record<Severity, string> = {
