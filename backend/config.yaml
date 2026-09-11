@@ -1,9 +1,5 @@
 elastic:
-  hosts:
-    - "https://localhost:9200"
-  # api_key is intentionally NOT set here -- see .env.example. Leave hosts
-  # empty ([]) if you don't have Elastic wired up yet; the app runs fine
-  # in CSV-only mode.
+  hosts: []
   index: "suricata-*"
   poll_interval_seconds: 3
   field_mapping:
@@ -14,7 +10,7 @@ elastic:
     dst_lon: "destination.geo.location.lon"
     src_ip: "source.ip"
     dst_ip: "destination.ip"
-    severity: "alert.severity"   # must resolve to critical / major / high
+    severity: "alert.severity"
 
 server:
   host: "127.0.0.1"

@@ -95,7 +95,7 @@ export class ArcEngine {
     // accumulates toward solid black over many frames -- see the mockup's
     // notes on why this specific technique is used).
     ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = "rgba(0,0,0,0.14)";
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
     ctx.fillRect(0, 0, w, h);
     ctx.globalCompositeOperation = "source-over";
 
@@ -108,7 +108,7 @@ export class ArcEngine {
         continue;
       }
       ctx.save();
-      ctx.globalAlpha = 0.12;
+      ctx.globalAlpha = 0.05;
       ctx.strokeStyle = a.color;
       ctx.lineWidth = 1;
       ctx.beginPath();

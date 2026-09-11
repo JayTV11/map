@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import io
+import math
 import random
 from dataclasses import dataclass
 
@@ -72,14 +73,18 @@ class CSVReplaySource(EventSource):
 
     def __init__(self) -> None:
         self._rows: list[_Row] = []
-        self._weights: list[int] = []
+        self._weights: list[float] = []
         self._intensity: int = 5
         self._running = False
 
     def load(self, raw: bytes) -> int:
         rows = parse_csv(raw)
         self._rows = rows
-        self._weights = [r.count for r in rows]
+        # sqrt-dampened rather than raw count: a row with count=500 should
+        # still fire more often than one with count=3, but not ~166x more
+        # often -- at that ratio the same route re-fires before its guide
+        # line finishes fading, which visually "burns in" that one path.
+        self._weights = [math.sqrt(r.count) for r in rows]
         return len(rows)
 
     def set_intensity(self, intensity: int) -> None:
