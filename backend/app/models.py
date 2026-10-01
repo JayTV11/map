@@ -15,7 +15,15 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 Severity = Literal["critical", "major", "high", "unknown"]
+Criticality = Literal["low", "normal", "high", "critical"]
+Direction = Literal["inbound", "outbound", "internal"]
 SourceKind = Literal["csv", "elastic"]
+
+
+class AssetRef(BaseModel):
+    """A named business system an IP belongs to (see assets.py)."""
+    name: str
+    criticality: Criticality = "normal"
 
 
 class TrafficEvent(BaseModel):
@@ -44,6 +52,13 @@ class TrafficEvent(BaseModel):
     action: Optional[str] = None          # e.g. allowed / blocked
     alert_time: Optional[str] = None      # the document's own timestamp (Elastic only)
     kibana_url: Optional[str] = None      # deep link to this doc in Discover, if configured
+
+    # Filled in by the asset directory (assets.py) when the IP is in a known range.
+    src_asset: Optional[AssetRef] = None
+    dst_asset: Optional[AssetRef] = None
+    # inbound = outside -> one of our systems, outbound = one of ours -> outside,
+    # internal = between two of ours. None when neither side is a known asset.
+    direction: Optional[Direction] = None
 
     source: SourceKind
 

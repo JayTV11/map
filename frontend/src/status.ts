@@ -13,6 +13,7 @@ export interface StatusPayload {
   };
   csv: { loaded: boolean; rows: number; filename: string | null; last_event_at: string | null };
   replay: { enabled: boolean; window_minutes: number };
+  assets?: { loaded: boolean; count: number; error: string | null };
 }
 
 export type FeedState =
@@ -217,6 +218,11 @@ export class StatusMonitor {
     if (e.is_replay) this.replayAt = now;
     else if (e.source === "csv") this.csvAt = now;
     else this.elasticAt = now;
+  }
+
+  /** True once backend/assets.yaml has at least one usable entry. */
+  get hasAssets(): boolean {
+    return (this.status?.assets?.count ?? 0) > 0;
   }
 
   get view(): FeedView {

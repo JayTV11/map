@@ -1,0 +1,24 @@
+src_lat,src_lon,dst_lat,dst_lon,severity,count,src_ip,dst_ip,signature,category,protocol,src_port,dst_port,action
+39.90,116.40,39.04,-77.49,Critical,210,203.0.113.45,192.0.2.10,ET EXPLOIT Apache Log4j RCE Attempt,Attempted Administrator Privilege Gain,TCP,51234,8080,blocked
+50.45,30.52,39.04,-77.49,Major,420,198.51.100.77,192.0.2.10,ET SCAN Potential SSH Scan,Attempted Information Leak,TCP,40112,22,blocked
+55.75,37.62,33.75,-84.39,Critical,95,198.51.100.31,10.50.10.12,ET WEB_SPECIFIC_APPS Spring4Shell RCE Attempt,Web Application Attack,TCP,48820,443,blocked
+21.03,105.85,36.01,-84.27,Major,120,203.0.113.88,192.0.2.25,ET SCAN SMTP Auth Brute Force Attempt,Attempted User Privilege Gain,TCP,52290,587,blocked
+-23.55,-46.63,39.04,-77.49,High,44,203.0.113.120,10.50.20.14,ET POLICY Suspicious User-Agent,Potentially Bad Traffic,TCP,38877,443,allowed
+6.52,3.38,39.04,-77.49,Major,75,198.51.100.200,10.50.20.14,ET WEB_SERVER SQL Injection Attempt,Web Application Attack,TCP,44120,443,blocked
+1.35,103.82,39.04,-77.49,High,60,203.0.113.17,192.0.2.10,ET SCAN Nikto Web Scanner,Web Application Attack,TCP,51320,80,blocked
+35.69,51.39,36.01,-84.27,Major,38,198.51.100.54,192.0.2.25,ET SCAN Possible SMTP User Enumeration,Attempted Information Leak,TCP,41822,25,blocked
+37.57,126.98,39.04,-77.49,High,31,203.0.113.66,192.0.2.10,ET POLICY Outdated TLS 1.0 Connection,Potentially Bad Traffic,TCP,39001,443,allowed
+52.37,4.89,33.75,-84.39,Major,18,198.51.100.9,10.50.10.12,ET SCAN Potential API Credential Stuffing,Attempted User Privilege Gain,TCP,47766,443,blocked
+50.11,8.68,39.04,-77.49,High,52,203.0.113.99,192.0.2.10,ET SCAN Zmap User-Agent,Attempted Information Leak,TCP,33810,443,blocked
+44.43,26.10,36.01,-84.27,High,26,198.51.100.188,192.0.2.25,ET POLICY Open SMTP Relay Attempt,Potentially Bad Traffic,TCP,55410,25,blocked
+39.90,116.40,36.16,-86.78,Major,14,203.0.113.46,10.60.4.15,ET SCAN Modbus TCP Scan,Attempted Information Leak,TCP,50221,502,blocked
+55.75,37.62,36.16,-86.78,Critical,9,198.51.100.140,10.60.4.20,ET SCADA Modbus Write Attempt from External,Attempted Administrator Privilege Gain,TCP,50980,502,blocked
+36.01,-84.27,55.75,37.62,Critical,28,10.20.14.88,198.51.100.23,ET MALWARE Cobalt Strike Beacon,A Network Trojan was detected,TCP,49822,443,allowed
+36.01,-84.27,52.37,4.89,Major,17,10.20.31.5,203.0.113.9,ET DNS Query to Known Malware Domain,Potentially Bad Traffic,UDP,53811,53,allowed
+36.01,-84.27,50.11,8.68,High,9,10.20.7.40,203.0.113.200,ET POLICY Tor Exit Node Traffic,Potentially Bad Traffic,TCP,52001,9001,allowed
+36.16,-86.78,44.43,26.10,Major,5,10.60.4.15,198.51.100.141,ET TROJAN Possible Data Exfiltration Large POST,A Network Trojan was detected,TCP,60112,443,blocked
+36.01,-84.27,33.75,-84.39,Critical,14,10.20.14.88,10.50.10.12,ET EXPLOIT Possible SMB Lateral Movement (PsExec),Attempted Administrator Privilege Gain,TCP,49310,445,allowed
+36.01,-84.27,36.16,-86.78,Major,22,10.20.14.88,10.60.4.15,ET SCAN Internal Port Sweep,Attempted Information Leak,TCP,49311,445,allowed
+36.16,-86.78,36.01,-84.27,High,12,10.60.4.15,10.20.1.10,ET POLICY Possible Internal Vulnerability Scan,Potentially Bad Traffic,TCP,50602,1433,allowed
+19.40,-99.13,39.04,-77.49,High,31,203.0.113.150,192.0.2.77,ET POLICY Suspicious User-Agent,Potentially Bad Traffic,TCP,38110,443,allowed
+-33.87,151.21,39.04,-77.49,High,19,198.51.100.66,192.0.2.78,ET SCAN Potential SSH Scan,Attempted Information Leak,TCP,40990,22,blocked

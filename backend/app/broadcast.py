@@ -27,6 +27,7 @@ from uuid import uuid4
 
 from fastapi import WebSocket
 
+from .assets import directory
 from .config import config
 from .models import TrafficEvent
 from .status import status
@@ -58,6 +59,7 @@ class Broadcaster:
 
     async def publish(self, event: TrafficEvent) -> None:
         status.event(event.source)  # replays bypass publish(), so this only ever counts genuinely new events
+        directory.enrich(event)  # before buffering, so replayed copies carry the names too
         # Only real Elastic events get buffered/replayed -- CSV mode is
         # already a continuous synthetic stream and doesn't need help.
         if event.source == "elastic":

@@ -1,0 +1,44 @@
+# Names for the systems on your network, so the map says "Payment API" instead
+# of "10.50.10.12".
+#
+# Copy this file to  backend/assets.yaml  and edit it. assets.yaml is
+# gitignored on purpose: it describes your real network layout, which should
+# not end up on GitHub. This example is safe to commit.
+#
+# Changes are picked up within a few seconds -- no restart needed. If an edit
+# breaks the file, the last good version stays in use and the problem is
+# printed in the server log and shown at /api/status.
+#
+# cidr         an IP range ("10.50.10.0/24") or a single host ("10.50.10.12/32").
+#              The MOST SPECIFIC range wins, so a /32 can sit inside a /16.
+# name         what shows up on screen (keep it short; it appears in a narrow list)
+# criticality  low | normal | high | critical   (default: normal)
+#              high and critical systems are flagged in the log and counted in the
+#              wall-mode "Key assets hit" number.
+
+networks:
+  # Sites / whole networks
+  - cidr: 10.20.0.0/16
+    name: Corporate LAN
+    criticality: normal
+
+  - cidr: 10.60.0.0/16
+    name: Plant Network
+    criticality: high
+
+  # Specific systems (these win over the ranges above)
+  - cidr: 10.50.10.0/24
+    name: Payment API
+    criticality: critical
+
+  - cidr: 10.50.20.0/24
+    name: Customer Portal
+    criticality: high
+
+  - cidr: 192.0.2.10/32
+    name: Public Web Server
+    criticality: high
+
+  - cidr: 192.0.2.25/32
+    name: Mail Gateway
+    criticality: high

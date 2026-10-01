@@ -12,9 +12,11 @@ const CELLS = [
 export class Headline {
   private nums = new Map<string, HTMLElement>();
   private total = document.createElement("div");
+  private keyCell = document.createElement("div");
+  private keyNum = document.createElement("div");
   private timer: number;
 
-  constructor(private stats: TalkerStats, windowSec: number, parent: HTMLElement) {
+  constructor(private stats: TalkerStats, windowSec: number, parent: HTMLElement, private hasAssets: () => boolean = () => false) {
     const root = document.createElement("div");
     root.id = "headline";
 
@@ -37,6 +39,15 @@ export class Headline {
       this.nums.set(key, num);
     }
 
+    // Only meaningful once asset names are configured, so it stays hidden until then.
+    this.keyCell.className = "hl-cell hl-key";
+    this.keyNum.className = "hl-num";
+    const kn = document.createElement("div");
+    kn.className = "hl-name";
+    kn.textContent = "Key assets hit";
+    this.keyCell.append(this.keyNum, kn);
+    root.append(this.keyCell);
+
     const totalCell = document.createElement("div");
     totalCell.className = "hl-cell hl-total";
     this.total.className = "hl-num";
@@ -55,6 +66,8 @@ export class Headline {
     const t = this.stats.severityTotals(now);
     for (const { key } of CELLS) this.nums.get(key)!.textContent = t[key].toLocaleString();
     this.total.textContent = t.total.toLocaleString();
+    this.keyCell.hidden = !this.hasAssets();
+    this.keyNum.textContent = this.stats.keyAssetHits(now).toLocaleString();
   }
 
   dispose(): void { window.clearInterval(this.timer); }

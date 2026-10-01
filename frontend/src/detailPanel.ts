@@ -1,5 +1,5 @@
 import { GroupSummary } from "./aggregator";
-import { SEVERITY_COLOR, TrafficEvent } from "./types";
+import { AssetRef, SEVERITY_COLOR, TrafficEvent } from "./types";
 
 /** True for RFC1918 / loopback / link-local IPv4 -- pivots to external
  *  lookup sites are only offered for public addresses so internal IPs
@@ -16,6 +16,16 @@ function endpoint(ip: string | null, port: number | null): string {
   if (!ip) return "?";
   return port !== null ? `${ip}:${port}` : ip;
 }
+
+function assetText(a: AssetRef | null | undefined): string | null {
+  return a ? `${a.name} (${a.criticality} priority)` : null;
+}
+
+const DIRECTION_TEXT = {
+  inbound: "Inbound \u2014 from outside to one of our systems",
+  outbound: "Outbound \u2014 from one of our systems to outside",
+  internal: "Internal \u2014 between two of our systems",
+} as const;
 
 function formatPorts(ports: number[], limit = 8): string {
   const shown = ports.slice(0, limit).join(", ");
@@ -63,6 +73,9 @@ export class DetailPanel {
     const grouped = summary !== undefined && summary.count > 1;
     const rows: [string, string | null][] = [
       ["Flow", `${endpoint(e.src_ip, e.src_port)} \u2192 ${endpoint(e.dst_ip, e.dst_port)}`],
+      ["Source system", assetText(e.src_asset)],
+      ["Target system", assetText(e.dst_asset)],
+      ["Direction", e.direction ? DIRECTION_TEXT[e.direction] : null],
       ["Count", grouped ? `${summary!.count.toLocaleString()} events` : null],
       ["Dest ports", grouped && summary!.dstPorts.length > 1 ? formatPorts(summary!.dstPorts) : null],
       ["Protocol", e.protocol ? e.protocol.toUpperCase() : null],

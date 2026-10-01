@@ -2,6 +2,7 @@ import "./style.css";
 import "./aggregate.css";
 import "./map-theme.css";
 import "./wall.css";
+import "./assets.css";
 import { renderWorldMap } from "./map";
 import { ArcEngine } from "./arcs";
 import { connectTrafficSocket } from "./wsClient";
@@ -44,11 +45,11 @@ const aggregator = new Aggregator();
 const TALKER_WINDOW_SEC = 300;
 const talkerStats = new TalkerStats(TALKER_WINDOW_SEC);
 new TalkersPanel(talkerStats, TALKER_WINDOW_SEC, document.getElementById("log-section"));
-new Headline(talkerStats, TALKER_WINDOW_SEC, wrap); // big severity counts; only visible in wall mode
-
 // Says out loud whether the map is showing live, simulated, or no data. A
 // dead feed must never look like a quiet network (see status.ts).
 const monitor = new StatusMonitor(document.getElementById("topbar")!, wrap);
+
+new Headline(talkerStats, TALKER_WINDOW_SEC, wrap, () => monitor.hasAssets); // big counts; only visible in wall mode
 
 // Press K (or open with ?kiosk=1) for wall-display mode. If someone zooms or
 // pins an event and walks away, it returns to the world view on its own.

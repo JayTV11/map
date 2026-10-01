@@ -1,0 +1,14 @@
+/* Business-system names in the log, plus the wall headline's key-assets cell. */
+
+.asset-name{color:var(--text-bright);font-weight:600;}
+.asset-name.key-high{color:#9db8ff;}
+.asset-name.key-critical{color:#d7a8ff;}
+.asset-name.key-high::before,
+.asset-name.key-critical::before{content:"\25C6\00a0";font-size:.8em;}
+
+.log-dir{font-size:9px;font-weight:700;letter-spacing:.6px;padding:0 5px;border-radius:3px;flex-shrink:0;line-height:15px;border:1px solid;}
+.log-dir.dir-outbound{color:#ff9f6b;border-color:#6b3a1d;background:#2a160a;}
+.log-dir.dir-internal{color:#8fb4d9;border-color:#2b4766;background:#0f1c2d;}
+
+.hl-key .hl-num{color:#d7a8ff;}
+.hl-cell[hidden]{display:none;}

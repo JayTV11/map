@@ -1,4 +1,4 @@
-import { Severity, TrafficEvent } from "./types";
+import { isKeyAsset, Severity, TrafficEvent } from "./types";
 
 export type TalkerDim = "src" | "sig" | "dst";
 
@@ -7,6 +7,7 @@ interface Bucket {
   sig: Map<string, number>;
   dst: Map<string, number>;
   sev: Map<string, number>;
+  keyHits: number;
 }
 
 export type SeverityTotals = Record<Severity, number> & { total: number };
@@ -34,12 +35,15 @@ export class TalkerStats {
     const sec = Math.floor(nowMs / 1000);
     let b = this.buckets.get(sec);
     if (!b) {
-      b = { src: new Map(), sig: new Map(), dst: new Map(), sev: new Map() };
+      b = { src: new Map(), sig: new Map(), dst: new Map(), sev: new Map(), keyHits: 0 };
       this.buckets.set(sec, b);
       this.evict(sec);
     }
-    bump(b.src, e.src_ip ?? `${e.src_lat},${e.src_lon}`);
-    bump(b.dst, e.dst_ip ?? `${e.dst_lat},${e.dst_lon}`);
+    // A known system is counted by NAME, so 40 addresses that all belong to the
+    // Payment API show up as one "Payment API" row instead of 40 IPs.
+    bump(b.src, e.src_asset?.name ?? e.src_ip ?? `${e.src_lat},${e.src_lon}`);
+    bump(b.dst, e.dst_asset?.name ?? e.dst_ip ?? `${e.dst_lat},${e.dst_lon}`);
+    if (isKeyAsset(e.dst_asset)) b.keyHits += 1;
     bump(b.sig, e.signature ?? NO_SIGNATURE);
     bump(b.sev, e.severity);
   }
@@ -68,6 +72,14 @@ export class TalkerStats {
       }
     }
     return t;
+  }
+
+  /** Events aimed at high- or critical-priority systems over the window. */
+  keyAssetHits(nowMs: number): number {
+    this.evict(Math.floor(nowMs / 1000));
+    let n = 0;
+    for (const b of this.buckets.values()) n += b.keyHits;
+    return n;
   }
 
   private evict(nowSec: number): void {

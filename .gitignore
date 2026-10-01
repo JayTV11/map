@@ -10,3 +10,5 @@ frontend/dist/
 
 # OS
 .DS_Store
+
+backend/assets.yaml
