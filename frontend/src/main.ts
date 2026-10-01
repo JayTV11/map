@@ -1,5 +1,6 @@
 import "./style.css";
 import "./aggregate.css";
+import "./map-theme.css";
 import { renderWorldMap } from "./map";
 import { ArcEngine } from "./arcs";
 import { connectTrafficSocket } from "./wsClient";

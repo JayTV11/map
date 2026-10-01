@@ -1,4 +1,5 @@
 import { WORLD_LAND_PATH } from "./world-path";
+import { WORLD_BORDERS_PATH } from "./world-borders";
 import { COUNTRY_LABELS } from "./country-labels";
 import { CITY_LABELS } from "./city-labels";
 
@@ -46,25 +47,44 @@ function escapeXml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** Country name labels -- always visible, at every zoom level (they fade
- *  out somewhat at deeper zoom tiers via CSS -- see style.css -- so they
- *  don't dominate the view once the user has zoomed in on a city). */
-function countryLabelMarkup(name: string, lat: number, lon: number): string {
+/** Country name labels. Tiered by land area (see mapgen/gen-labels.js and
+ *  map-theme.css's .ctier-N rules): the ~30 biggest countries always show,
+ *  smaller ones appear as the user zooms in, so the world view isn't a
+ *  pile of overlapping names in Europe and Central America. Labels near
+ *  the left/right edge anchor inward so they aren't cut off by the map
+ *  boundary (Samoa, Tonga, Fiji, ...). */
+function countryLabelMarkup(name: string, lat: number, lon: number, tier: 1 | 2 | 3 | 4): string {
   const [x, y] = toSvgCoords(lat, lon);
-  return `<text class="label-country" x="${x}" y="${y}">${escapeXml(name)}</text>`;
+  const anchor = x < 30 ? "start" : x > 970 ? "end" : "middle";
+  return `<text class="label-country ctier-${tier}" x="${x}" y="${y}" style="text-anchor:${anchor}">${escapeXml(name)}</text>`;
+}
+
+/** Faint lat/lon grid every 30 degrees -- no data, just gives the flat
+ *  world some structure and a sense of scale. */
+function graticulePath(): string {
+  const d: string[] = [];
+  for (let lon = -150; lon <= 150; lon += 30) {
+    const [x] = toSvgCoords(0, lon);
+    d.push(`M${x} 0V${SVG_H}`);
+  }
+  for (let lat = -60; lat <= 60; lat += 30) {
+    const [, y] = toSvgCoords(lat, 0);
+    d.push(`M0 ${y}H${SVG_W}`);
+  }
+  return d.join("");
 }
 
 /** City labels, revealed progressively by tier as the user zooms in (see
- *  mapZoom.ts's zoom-tier-N classes and style.css's .label-city rules) --
- *  tier 1 is the ~40 largest world cities, tier 3 the least prominent of
- *  the top 500. This is a population-ranked approximation of Google
- *  Maps-style label decluttering, not true collision detection -- dense
- *  regions (e.g. Europe) can still show some overlap once tier 3 is on. */
-function cityLabelMarkup(name: string, lat: number, lon: number, tier: 1 | 2 | 3): string {
+ *  mapZoom.ts's zoom-tier-N classes and style.css's .label-city rules).
+ *  Tiers come from mapgen/gen-labels.js, which collision-checks every label
+ *  at the zoom level it appears at, so labels don't print on top of each
+ *  other. */
+function cityLabelMarkup(name: string, lat: number, lon: number, tier: 1 | 2 | 3 | 4): string {
   const [x, y] = toSvgCoords(lat, lon);
-  const tx = (x + 1.6).toFixed(2);
-  const ty = (y + 1.1).toFixed(2);
-  return `<g class="label-city tier-${tier}"><circle cx="${x}" cy="${y}" r="0.9"/><text x="${tx}" y="${ty}">${escapeXml(name)}</text></g>`;
+  // The text is placed exactly at the dot; map-theme.css offsets it by a
+  // constant on-screen distance (translate in px / zoom), so the gap between
+  // dot and name doesn't stretch as the map is zoomed.
+  return `<g class="label-city tier-${tier}"><circle cx="${x}" cy="${y}" r="0.9"/><text x="${x.toFixed(2)}" y="${y.toFixed(2)}">${escapeXml(name)}</text></g>`;
 }
 
 export function renderWorldMap(container: HTMLElement): void {
@@ -72,10 +92,26 @@ export function renderWorldMap(container: HTMLElement): void {
   // globe is always visible. "slice" (crop-to-fill) sounds nicer but on
   // most normal window shapes crops a large chunk of longitude off the
   // edges to fill the box, which is wrong for a "where in the world" map.
+  // The land shape is defined once and <use>d for the soft coastal glow
+  // (a few progressively wider, fainter strokes underneath the land fill),
+  // so the big path string isn't duplicated in the DOM. Fills/strokes come
+  // from map-theme.css.
   container.innerHTML = `<svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-    <path class="land" d="${WORLD_LAND_PATH}"/>
+    <defs>
+      <linearGradient id="land-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop class="land-stop-a" offset="0"/>
+        <stop class="land-stop-b" offset="1"/>
+      </linearGradient>
+      <path id="land-shape" d="${WORLD_LAND_PATH}"/>
+    </defs>
+    <path class="graticule" d="${graticulePath()}"/>
+    <use href="#land-shape" class="halo halo-3"/>
+    <use href="#land-shape" class="halo halo-2"/>
+    <use href="#land-shape" class="halo halo-1"/>
+    <use href="#land-shape" class="land"/>
+    <path class="borders" d="${WORLD_BORDERS_PATH}"/>
     ${POINTS_OF_INTEREST.map(poiMarker).join("")}
-    ${COUNTRY_LABELS.map((c) => countryLabelMarkup(c.name, c.lat, c.lon)).join("")}
+    ${COUNTRY_LABELS.map((c) => countryLabelMarkup(c.name, c.lat, c.lon, c.tier)).join("")}
     ${CITY_LABELS.map((c) => cityLabelMarkup(c.name, c.lat, c.lon, c.tier)).join("")}
   </svg>`;
 }

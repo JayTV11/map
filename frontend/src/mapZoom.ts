@@ -22,7 +22,9 @@ const MAX_SCALE = 14;
 // on (see map.ts's CITY_LABELS tiers and style.css's .label-city rules) --
 // a population-ranked approximation of Google Maps' "more detail as you
 // zoom in" behavior.
-const CITY_TIER_THRESHOLDS: Record<1 | 2 | 3, number> = { 1: 2, 2: 4.5, 3: 8 };
+// (Must match CITY_ZOOM / COUNTRY_ZOOM in mapgen/gen-labels.js, which
+// collision-checks every label against these exact zoom levels.)
+const CITY_TIER_THRESHOLDS: Record<1 | 2 | 3 | 4, number> = { 1: 2, 2: 4.5, 3: 8, 4: 12 };
 
 export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): void {
   let scale = 1;
@@ -44,10 +46,14 @@ export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): void {
 
   function apply(): void {
     viewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    // map-theme.css divides stroke widths by this so coastlines/borders stay
+    // crisp hairlines at any zoom instead of thickening along with the map.
+    wrap.style.setProperty("--zoom", String(scale));
     wrap.classList.toggle("zoomed", scale > MIN_SCALE);
     wrap.classList.toggle("zoom-tier-1", scale >= CITY_TIER_THRESHOLDS[1]);
     wrap.classList.toggle("zoom-tier-2", scale >= CITY_TIER_THRESHOLDS[2]);
     wrap.classList.toggle("zoom-tier-3", scale >= CITY_TIER_THRESHOLDS[3]);
+    wrap.classList.toggle("zoom-tier-4", scale >= CITY_TIER_THRESHOLDS[4]);
   }
 
   /** Zoom by `factor`, keeping the content point under (clientX, clientY)

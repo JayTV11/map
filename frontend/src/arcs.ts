@@ -40,6 +40,13 @@ function computeArcGeometry(event: TrafficEvent, w: number, h: number): ArcGeome
 // competing with the pinned "missile" for attention.
 const DIM_FACTOR = 0.22;
 
+// The trail-fade (destination-out) can never quite reach zero on an 8-bit
+// canvas: very faint pixels round back to themselves and stay forever, which
+// shows up as ghost streaks across the map once traffic stops. After this
+// many consecutive idle frames (~0.7s at 60fps, long enough for the trails
+// to finish fading) the overlay is wiped clean.
+const IDLE_CLEAR_FRAMES = 40;
+
 export class ArcEngine {
   private ctx: CanvasRenderingContext2D;
   private active: ActiveArc[] = [];
@@ -47,6 +54,7 @@ export class ArcEngine {
   private enabledSeverities = new Set<string>(["critical", "major", "high", "unknown"]);
   private paused = false;
   private pinned: TrafficEvent | null = null;
+  private idleFrames = 0;
 
   onActiveCountChange?: (n: number) => void;
 
@@ -172,6 +180,12 @@ export class ArcEngine {
     ctx.fillStyle = "rgba(0,0,0,0.22)";
     ctx.fillRect(0, 0, w, h);
     ctx.globalCompositeOperation = "source-over";
+
+    if (this.active.length > 0 || this.pings.length > 0) {
+      this.idleFrames = 0;
+    } else if (++this.idleFrames === IDLE_CLEAR_FRAMES) {
+      ctx.clearRect(0, 0, w, h); // wipe the un-fadeable residue (see IDLE_CLEAR_FRAMES)
+    }
 
     for (let i = this.active.length - 1; i >= 0; i--) {
       const a = this.active[i];
