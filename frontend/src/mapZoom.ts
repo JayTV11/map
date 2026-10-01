@@ -26,7 +26,7 @@ const MAX_SCALE = 14;
 // collision-checks every label against these exact zoom levels.)
 const CITY_TIER_THRESHOLDS: Record<1 | 2 | 3 | 4, number> = { 1: 2, 2: 4.5, 3: 8, 4: 12 };
 
-export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): void {
+export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): { reset: () => void } {
   let scale = 1;
   let tx = 0;
   let ty = 0;
@@ -153,4 +153,5 @@ export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): void {
   document.getElementById("zoom-reset")?.addEventListener("click", resetView);
 
   apply();
+  return { reset: resetView };
 }

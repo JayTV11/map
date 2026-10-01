@@ -1,4 +1,4 @@
-import { TrafficEvent } from "./types";
+import { Severity, TrafficEvent } from "./types";
 
 export type TalkerDim = "src" | "sig" | "dst";
 
@@ -6,7 +6,10 @@ interface Bucket {
   src: Map<string, number>;
   sig: Map<string, number>;
   dst: Map<string, number>;
+  sev: Map<string, number>;
 }
+
+export type SeverityTotals = Record<Severity, number> & { total: number };
 
 export interface Talker {
   name: string;
@@ -31,13 +34,14 @@ export class TalkerStats {
     const sec = Math.floor(nowMs / 1000);
     let b = this.buckets.get(sec);
     if (!b) {
-      b = { src: new Map(), sig: new Map(), dst: new Map() };
+      b = { src: new Map(), sig: new Map(), dst: new Map(), sev: new Map() };
       this.buckets.set(sec, b);
       this.evict(sec);
     }
     bump(b.src, e.src_ip ?? `${e.src_lat},${e.src_lon}`);
     bump(b.dst, e.dst_ip ?? `${e.dst_lat},${e.dst_lon}`);
     bump(b.sig, e.signature ?? NO_SIGNATURE);
+    bump(b.sev, e.severity);
   }
 
   top(dim: TalkerDim, n: number, nowMs: number): Talker[] {
@@ -51,6 +55,19 @@ export class TalkerStats {
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
       .slice(0, n);
+  }
+
+  /** Event counts by severity over the window -- the wall-mode headline. */
+  severityTotals(nowMs: number): SeverityTotals {
+    this.evict(Math.floor(nowMs / 1000));
+    const t: SeverityTotals = { critical: 0, major: 0, high: 0, unknown: 0, total: 0 };
+    for (const b of this.buckets.values()) {
+      for (const [sev, n] of b.sev) {
+        t[sev as Severity] += n;
+        t.total += n;
+      }
+    }
+    return t;
   }
 
   private evict(nowSec: number): void {

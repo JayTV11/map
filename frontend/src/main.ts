@@ -1,6 +1,7 @@
 import "./style.css";
 import "./aggregate.css";
 import "./map-theme.css";
+import "./wall.css";
 import { renderWorldMap } from "./map";
 import { ArcEngine } from "./arcs";
 import { connectTrafficSocket } from "./wsClient";
@@ -11,6 +12,9 @@ import { FocusController } from "./focus";
 import { DetailPanel } from "./detailPanel";
 import { Aggregator } from "./aggregator";
 import { TalkerStats, TalkersPanel } from "./talkers";
+import { StatusMonitor } from "./status";
+import { Kiosk } from "./kiosk";
+import { Headline } from "./headline";
 import { Severity } from "./types";
 
 renderWorldMap(document.getElementById("map-bg")!);
@@ -20,7 +24,7 @@ const mapViewport = document.getElementById("map-viewport")!;
 const canvas = document.getElementById("fx") as HTMLCanvasElement;
 const engine = new ArcEngine(canvas, wrap);
 wireControls(engine);
-wireMapZoom(mapViewport, wrap);
+const zoom = wireMapZoom(mapViewport, wrap);
 
 const focus = new FocusController(
   engine,
@@ -40,6 +44,15 @@ const aggregator = new Aggregator();
 const TALKER_WINDOW_SEC = 300;
 const talkerStats = new TalkerStats(TALKER_WINDOW_SEC);
 new TalkersPanel(talkerStats, TALKER_WINDOW_SEC, document.getElementById("log-section"));
+new Headline(talkerStats, TALKER_WINDOW_SEC, wrap); // big severity counts; only visible in wall mode
+
+// Says out loud whether the map is showing live, simulated, or no data. A
+// dead feed must never look like a quiet network (see status.ts).
+const monitor = new StatusMonitor(document.getElementById("topbar")!, wrap);
+
+// Press K (or open with ?kiosk=1) for wall-display mode. If someone zooms or
+// pins an event and walks away, it returns to the world view on its own.
+new Kiosk({ onIdle: () => { zoom.reset(); focus.clear(); } });
 
 const logList = document.getElementById("log-list")!;
 const logRows = new Map<number, LogRow>(); // group id -> its row, while the row is still in the DOM
@@ -60,6 +73,7 @@ const sevCounts: Partial<Record<Severity, number>> = { critical: 0, major: 0, hi
 engine.onActiveCountChange = (n) => { statActive.textContent = String(n); };
 
 connectTrafficSocket((event) => {
+  monitor.noteEvent(event);
   if (event.is_replay) {
     engine.spawn(event); // renders identically, but stays out of the log/counters/stats
     return;
@@ -88,7 +102,7 @@ connectTrafficSocket((event) => {
     sevCounts[event.severity] = (sevCounts[event.severity] ?? 0) + 1;
     el.textContent = String(sevCounts[event.severity]);
   }
-});
+}, (connected) => monitor.setWsConnected(connected));
 
 // Draws arcs the aggregator held back (a burst that ended, or the global
 // budget ran out) and forgets log rows the 60-entry cap already removed.

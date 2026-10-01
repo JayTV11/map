@@ -113,6 +113,11 @@ class CSVReplaySource(EventSource):
         self._weights = [math.sqrt(r.count) for r in rows]
         return len(rows)
 
+    def unload(self) -> None:
+        """Back to idle: no rows, so run() stops firing events."""
+        self._rows = []
+        self._weights = []
+
     def set_intensity(self, intensity: int) -> None:
         self._intensity = max(1, min(10, intensity))
 

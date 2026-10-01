@@ -35,6 +35,7 @@ from elasticsearch import AsyncElasticsearch
 from ..kibana import _parse_ts as parse_timestamp
 from ..kibana import discover_url
 from ..models import TrafficEvent
+from ..status import status
 from .base import EventSource, Publisher
 
 
@@ -106,11 +107,14 @@ class ElasticPollSource(EventSource):
             api_key=self._cfg.get("api_key") or None,
         )
         self._running = True
+        status.elastic_configured = True
         try:
             while self._running:
                 try:
                     await self._poll_until_caught_up(publish)
+                    status.poll_ok()
                 except Exception as exc:  # log and keep polling rather than crash the task
+                    status.poll_failed(exc)
                     print(f"[elastic_source] poll failed: {exc!r}")
                 await asyncio.sleep(self._cfg.get("poll_interval_seconds", 3))
         finally:

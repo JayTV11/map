@@ -29,6 +29,7 @@ from fastapi import WebSocket
 
 from .config import config
 from .models import TrafficEvent
+from .status import status
 
 
 class Broadcaster:
@@ -56,6 +57,7 @@ class Broadcaster:
         self._clients.discard(ws)
 
     async def publish(self, event: TrafficEvent) -> None:
+        status.event(event.source)  # replays bypass publish(), so this only ever counts genuinely new events
         # Only real Elastic events get buffered/replayed -- CSV mode is
         # already a continuous synthetic stream and doesn't need help.
         if event.source == "elastic":
