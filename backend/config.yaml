@@ -15,6 +15,20 @@ elastic:
     src_ip: "source.ip"
     dst_ip: "destination.ip"
     severity: "alert.severity"   # must resolve to critical / major / high
+    # Optional alert-detail fields (shown in the detail panel). Delete a line
+    # or leave the path unmatched and that field just shows as blank.
+    signature: "rule.name"
+    signature_id: "rule.id"
+    category: "rule.category"
+    protocol: "network.transport"
+    src_port: "source.port"
+    dst_port: "destination.port"
+    action: "suricata.eve.alert.action"
+
+# Optional: enables an "Open in Kibana" button on each event. Leave blank to hide it.
+kibana:
+  base_url: ""          # e.g. "https://kibana.example.com"
+  data_view_id: ""      # the data view's ID (from its URL in Stack Management), not its name
 
 server:
   host: "127.0.0.1"

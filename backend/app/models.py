@@ -33,6 +33,18 @@ class TrafficEvent(BaseModel):
     src_ip: Optional[str] = None
     dst_ip: Optional[str] = None
 
+    # Alert detail -- all optional so CSV rows and older Elastic mappings
+    # that don't carry these still produce a valid event.
+    signature: Optional[str] = None
+    signature_id: Optional[str] = None
+    category: Optional[str] = None
+    protocol: Optional[str] = None
+    src_port: Optional[int] = None
+    dst_port: Optional[int] = None
+    action: Optional[str] = None          # e.g. allowed / blocked
+    alert_time: Optional[str] = None      # the document's own timestamp (Elastic only)
+    kibana_url: Optional[str] = None      # deep link to this doc in Discover, if configured
+
     source: SourceKind
 
     # True when this is a re-fire of a real event still within the buffer's

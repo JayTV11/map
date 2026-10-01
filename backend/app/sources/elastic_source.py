@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 from elasticsearch import AsyncElasticsearch
 
+from ..kibana import discover_url
 from ..models import TrafficEvent
 from .base import EventSource, Publisher
 
@@ -27,6 +28,25 @@ def _get(doc: dict[str, Any], dotted_path: str) -> Any:
     return node
 
 
+def _opt(doc: dict[str, Any], fields: dict[str, str], key: str) -> Any:
+    """Optional field: None when the mapping key is absent or the doc lacks it."""
+    path = fields.get(key)
+    return _get(doc, path) if path else None
+
+
+def _opt_str(doc: dict[str, Any], fields: dict[str, str], key: str) -> Optional[str]:
+    v = _opt(doc, fields, key)
+    return None if v is None else str(v)
+
+
+def _opt_int(doc: dict[str, Any], fields: dict[str, str], key: str) -> Optional[int]:
+    v = _opt(doc, fields, key)
+    try:
+        return None if v is None else int(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _normalize_severity(raw: Any) -> str:
     if raw is None:
         return "unknown"
@@ -38,6 +58,7 @@ class ElasticPollSource(EventSource):
     def __init__(self, cfg: dict[str, Any]) -> None:
         self._cfg = cfg
         self._fields = cfg["field_mapping"]
+        self._kibana = cfg.get("kibana") or {}
         self._client: Optional[AsyncElasticsearch] = None
         self._running = False
         self._last_timestamp: Optional[str] = None
@@ -82,6 +103,15 @@ class ElasticPollSource(EventSource):
                         severity=_normalize_severity(_get(doc, self._fields["severity"])),
                         src_ip=_get(doc, self._fields["src_ip"]),
                         dst_ip=_get(doc, self._fields["dst_ip"]),
+                        signature=_opt_str(doc, self._fields, "signature"),
+                        signature_id=_opt_str(doc, self._fields, "signature_id"),
+                        category=_opt_str(doc, self._fields, "category"),
+                        protocol=_opt_str(doc, self._fields, "protocol"),
+                        src_port=_opt_int(doc, self._fields, "src_port"),
+                        dst_port=_opt_int(doc, self._fields, "dst_port"),
+                        action=_opt_str(doc, self._fields, "action"),
+                        alert_time=_opt_str(doc, self._fields, "timestamp"),
+                        kibana_url=discover_url(self._kibana, hit.get("_id", ""), _get(doc, ts_field)),
                         source="elastic",
                     )
                     await publish(event)

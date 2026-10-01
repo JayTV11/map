@@ -6,6 +6,7 @@ import { appendLogEntry } from "./eventLog";
 import { wireControls } from "./controls";
 import { wireMapZoom } from "./mapZoom";
 import { FocusController } from "./focus";
+import { DetailPanel } from "./detailPanel";
 import { Severity } from "./types";
 
 renderWorldMap(document.getElementById("map-bg")!);
@@ -19,6 +20,7 @@ wireMapZoom(mapViewport, wrap);
 
 const focus = new FocusController(
   engine,
+  new DetailPanel(),
   document.getElementById("focus-banner")!,
   document.getElementById("focus-dot")!,
   document.getElementById("focus-text")!,

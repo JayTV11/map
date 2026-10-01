@@ -37,6 +37,25 @@ class _Row:
     count: int
     src_ip: str
     dst_ip: str
+    signature: str | None = None
+    category: str | None = None
+    protocol: str | None = None
+    src_port: int | None = None
+    dst_port: int | None = None
+    action: str | None = None
+
+
+def _opt_text(r: dict, key: str) -> str | None:
+    v = (r.get(key) or "").strip()
+    return v or None
+
+
+def _opt_port(r: dict, key: str) -> int | None:
+    v = (r.get(key) or "").strip()
+    try:
+        return int(float(v)) if v else None
+    except ValueError:
+        return None
 
 
 def parse_csv(raw: bytes) -> list[_Row]:
@@ -61,6 +80,13 @@ def parse_csv(raw: bytes) -> list[_Row]:
                 count=max(1, int(float(r["count"]))),
                 src_ip=r["src_ip"].strip(),
                 dst_ip=r["dst_ip"].strip(),
+                # Optional detail columns -- see sample_data/example.csv
+                signature=_opt_text(r, "signature"),
+                category=_opt_text(r, "category"),
+                protocol=_opt_text(r, "protocol"),
+                src_port=_opt_port(r, "src_port"),
+                dst_port=_opt_port(r, "dst_port"),
+                action=_opt_text(r, "action"),
             )
         )
     if not rows:
@@ -106,6 +132,8 @@ class CSVReplaySource(EventSource):
                 dst_lat=row.dst_lat, dst_lon=row.dst_lon,
                 severity=row.severity, count=row.count,
                 src_ip=row.src_ip, dst_ip=row.dst_ip,
+                signature=row.signature, category=row.category, protocol=row.protocol,
+                src_port=row.src_port, dst_port=row.dst_port, action=row.action,
                 source="csv",
             )
             await publish(event)

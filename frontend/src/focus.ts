@@ -1,11 +1,13 @@
 import { ArcEngine } from "./arcs";
+import { DetailPanel } from "./detailPanel";
 import { SEVERITY_COLOR, TrafficEvent } from "./types";
 
 /** Owns the "pin one event as a static missile" workflow end to end:
  *  toggling ArcEngine's pinned state, highlighting the selected log row,
- *  and showing/hiding the focus banner. Centralizing it here means
- *  main.ts and eventLog.ts don't need to coordinate selection state with
- *  each other directly.
+ *  showing/hiding the focus banner, and showing the alert detail panel
+ *  for the pinned event. Centralizing it here means main.ts and
+ *  eventLog.ts don't need to coordinate selection state with each other
+ *  directly.
  *
  * The banner (not just the log row highlight) matters because the event
  * log caps at 60 entries (see eventLog.ts's MAX_ENTRIES) -- a pinned
@@ -19,12 +21,15 @@ export class FocusController {
 
   constructor(
     private engine: ArcEngine,
+    private detail: DetailPanel,
     private banner: HTMLElement,
     private dot: HTMLElement,
     private text: HTMLElement,
     clearButton: HTMLElement,
   ) {
     clearButton.addEventListener("click", () => this.clear());
+    // The detail panel's close button and Esc also unpin the event.
+    this.detail.onClose = () => this.clear();
   }
 
   /** Call from the log row's click/keydown handler. Clicking the
@@ -41,9 +46,10 @@ export class FocusController {
     this.selectedId = event.id;
     this.selectedEl = el;
     this.engine.pin(event);
+    this.detail.show(event);
 
     this.dot.style.background = SEVERITY_COLOR[event.severity];
-    this.text.textContent = `${event.src_ip ?? "?"} → ${event.dst_ip ?? "?"}`;
+    this.text.textContent = `${event.src_ip ?? "?"} \u2192 ${event.dst_ip ?? "?"}`;
     this.banner.hidden = false;
   }
 
@@ -52,6 +58,7 @@ export class FocusController {
     this.selectedId = null;
     this.selectedEl = null;
     this.engine.unpin();
+    this.detail.hide(false);
     this.banner.hidden = true;
   }
 }

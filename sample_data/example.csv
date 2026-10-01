@@ -1,9 +1,9 @@
-src_lat,src_lon,dst_lat,dst_lon,severity,count,src_ip,dst_ip
-37.77,-122.42,55.75,37.62,Critical,340,198.51.100.23,45.83.12.9
-39.9,116.4,38.9,-77.0,Critical,210,103.21.4.88,12.34.56.78
-50.45,30.52,52.52,13.4,Major,95,91.219.28.4,5.183.9.44
-35.68,139.69,37.77,-122.42,High,44,202.12.27.33,198.51.100.23
-19.4,-99.13,40.71,-74.0,High,31,189.203.5.18,204.79.197.5
-55.75,37.62,51.5,-0.12,Critical,410,45.83.12.9,82.146.34.7
-1.35,103.82,35.68,139.69,Major,73,128.199.0.11,202.12.27.33
-28.6,77.2,52.37,4.89,Major,120,182.68.4.7,185.220.101.4
+src_lat,src_lon,dst_lat,dst_lon,severity,count,src_ip,dst_ip,signature,category,protocol,src_port,dst_port,action
+37.77,-122.42,55.75,37.62,Critical,340,198.51.100.23,45.83.12.9,ET MALWARE Known C2 Beacon,A Network Trojan was detected,TCP,49822,443,allowed
+39.9,116.4,38.9,-77.0,Critical,210,103.21.4.88,12.34.56.78,ET EXPLOIT Apache Log4j RCE Attempt,Attempted Administrator Privilege Gain,TCP,51234,8080,blocked
+50.45,30.52,52.52,13.4,Major,95,91.219.28.4,5.183.9.44,ET SCAN Potential SSH Scan,Attempted Information Leak,TCP,40112,22,blocked
+35.68,139.69,37.77,-122.42,High,44,202.12.27.33,198.51.100.23,ET POLICY Suspicious User-Agent,Potentially Bad Traffic,TCP,38877,80,allowed
+19.4,-99.13,40.71,-74.0,High,31,189.203.5.18,204.79.197.5,ET DNS Query to Known Malware Domain,Potentially Bad Traffic,UDP,53811,53,allowed
+55.75,37.62,51.5,-0.12,Critical,410,45.83.12.9,82.146.34.7,ET MALWARE Cobalt Strike Beacon,A Network Trojan was detected,TCP,49001,443,allowed
+1.35,103.82,35.68,139.69,Major,73,128.199.0.11,202.12.27.33,ET SCAN Nmap Scripting Engine,Attempted Information Leak,TCP,44120,445,blocked
+28.6,77.2,52.37,4.89,Major,120,182.68.4.7,185.220.101.4,ET POLICY Tor Exit Node Traffic,Potentially Bad Traffic,TCP,52290,9001,allowed
