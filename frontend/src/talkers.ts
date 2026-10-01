@@ -1,4 +1,4 @@
-import { isKeyAsset, Severity, TrafficEvent } from "./types";
+import { isKeyAsset, severityLevels, TrafficEvent } from "./types";
 
 export type TalkerDim = "src" | "sig" | "dst";
 
@@ -10,7 +10,8 @@ interface Bucket {
   keyHits: number;
 }
 
-export type SeverityTotals = Record<Severity, number> & { total: number };
+/** Event counts by severity level id (every configured level, plus "unknown"), and the overall total. */
+export type SeverityTotals = Record<string, number> & { total: number };
 
 export interface Talker {
   name: string;
@@ -64,10 +65,11 @@ export class TalkerStats {
   /** Event counts by severity over the window -- the wall-mode headline. */
   severityTotals(nowMs: number): SeverityTotals {
     this.evict(Math.floor(nowMs / 1000));
-    const t: SeverityTotals = { critical: 0, major: 0, high: 0, unknown: 0, total: 0 };
+    const t: SeverityTotals = { unknown: 0, total: 0 };
+    for (const lv of severityLevels()) t[lv.id] = 0;
     for (const b of this.buckets.values()) {
       for (const [sev, n] of b.sev) {
-        t[sev as Severity] += n;
+        t[sev] = (t[sev] ?? 0) + n;
         t.total += n;
       }
     }

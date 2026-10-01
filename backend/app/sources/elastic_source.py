@@ -35,6 +35,10 @@ from elasticsearch import AsyncElasticsearch
 from ..kibana import _parse_ts as parse_timestamp
 from ..kibana import discover_url
 from ..models import TrafficEvent
+from ..normalize import record_to_event
+from ..records import flatten
+from ..settings import home, scale
+from ..severity import SeverityMapper
 from ..status import status
 from .base import EventSource, Publisher
 
@@ -48,32 +52,6 @@ def _get(doc: dict[str, Any], dotted_path: str) -> Any:
     return node
 
 
-def _opt(doc: dict[str, Any], fields: dict[str, str], key: str) -> Any:
-    """Optional field: None when the mapping key is absent or the doc lacks it."""
-    path = fields.get(key)
-    return _get(doc, path) if path else None
-
-
-def _opt_str(doc: dict[str, Any], fields: dict[str, str], key: str) -> Optional[str]:
-    v = _opt(doc, fields, key)
-    return None if v is None else str(v)
-
-
-def _opt_int(doc: dict[str, Any], fields: dict[str, str], key: str) -> Optional[int]:
-    v = _opt(doc, fields, key)
-    try:
-        return None if v is None else int(v)
-    except (TypeError, ValueError):
-        return None
-
-
-def _normalize_severity(raw: Any) -> str:
-    if raw is None:
-        return "unknown"
-    s = str(raw).strip().lower()
-    return s if s in ("critical", "major", "high") else "unknown"
-
-
 def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
@@ -85,6 +63,14 @@ class ElasticPollSource(EventSource):
     def __init__(self, cfg: dict[str, Any]) -> None:
         self._cfg = cfg
         self._fields = cfg["field_mapping"]
+        # Suricata (the default index) sends severity as 1/2/3 with 1 worst; config.yaml's
+        # elastic.severity_preset / severity_map override that for any other source.
+        self._sev = SeverityMapper(
+            scale,
+            explicit=cfg.get("severity_map"),
+            preset=cfg.get("severity_preset", "suricata"),
+            default=cfg.get("severity_default", "unknown"),
+        )
         self._kibana = cfg.get("kibana") or {}
         self._client: Optional[AsyncElasticsearch] = None
         self._running = False
@@ -189,32 +175,19 @@ class ElasticPollSource(EventSource):
             del self._seen[key]
 
     def _to_event(self, hit: dict[str, Any], doc: dict[str, Any], doc_ts: datetime) -> Optional[TrafficEvent]:
-        f = self._fields
-        coords = [_get(doc, f[k]) for k in ("src_lat", "src_lon", "dst_lat", "dst_lon")]
-        if None in coords:
-            return None  # no geo on this doc -- can't plot it, skip
-        try:
-            src_lat, src_lon, dst_lat, dst_lon = (float(c) for c in coords)
-        except (TypeError, ValueError):
+        event, reason = record_to_event(flatten(doc), self._fields, self._sev, home, "elastic", timestamp=doc_ts)
+        if event is None:
+            if reason == "no_geo":
+                # Counted and shown on the status badge: alerts missing from the map
+                # must never be invisible, or a quiet-looking map could hide real ones.
+                status.elastic_skipped_no_geo += 1
             return None
+        # The alert's own time, so the replay buffer ages events by when they happened.
+        event.timestamp = doc_ts
+        event.alert_time = _text(_get(doc, self._fields["timestamp"])) if self._fields.get("timestamp") else None
+        event.kibana_url = discover_url(self._kibana, hit.get("_id", ""), _get(doc, self._fields["timestamp"]))
+        return event
 
-        return TrafficEvent(
-            # The alert's own time, so the replay buffer ages events by when
-            # they happened, not when we happened to ingest them.
-            timestamp=doc_ts,
-            src_lat=src_lat, src_lon=src_lon,
-            dst_lat=dst_lat, dst_lon=dst_lon,
-            severity=_normalize_severity(_get(doc, f["severity"])),
-            src_ip=_get(doc, f["src_ip"]),
-            dst_ip=_get(doc, f["dst_ip"]),
-            signature=_opt_str(doc, f, "signature"),
-            signature_id=_opt_str(doc, f, "signature_id"),
-            category=_opt_str(doc, f, "category"),
-            protocol=_opt_str(doc, f, "protocol"),
-            src_port=_opt_int(doc, f, "src_port"),
-            dst_port=_opt_int(doc, f, "dst_port"),
-            action=_opt_str(doc, f, "action"),
-            alert_time=_opt_str(doc, f, "timestamp"),
-            kibana_url=discover_url(self._kibana, hit.get("_id", ""), _get(doc, f["timestamp"])),
-            source="elastic",
-        )
+
+def _text(v: Any) -> Optional[str]:
+    return None if v is None else str(v)

@@ -1,7 +1,7 @@
 import { ArcEngine } from "./arcs";
 import { EventGroup, summarize } from "./aggregator";
 import { DetailPanel } from "./detailPanel";
-import { SEVERITY_COLOR } from "./types";
+import { severityColor } from "./types";
 
 /** Owns the "pin one event as a static missile" workflow end to end:
  *  toggling ArcEngine's pinned state, highlighting the selected log row,
@@ -54,7 +54,7 @@ export class FocusController {
     this.detail.show(group.event, summarize(group));
 
     const e = group.event;
-    this.dot.style.background = SEVERITY_COLOR[group.severity];
+    this.dot.style.background = severityColor(group.severity);
     this.text.textContent = `${e.src_ip ?? "?"} \u2192 ${e.dst_ip ?? "?"}`;
     this.banner.hidden = false;
   }

@@ -1,5 +1,5 @@
 import { EventGroup } from "./aggregator";
-import { AssetRef, isKeyAsset, SEVERITY_COLOR } from "./types";
+import { AssetRef, isKeyAsset, severityColor, severityLabel } from "./types";
 
 const MAX_ENTRIES = 60;
 
@@ -52,8 +52,8 @@ export function appendLogEntry(list: HTMLElement, group: EventGroup, onSelect: (
   el.append(badge, sevLabel);
 
   const update = (g: EventGroup): void => {
-    dot.style.background = SEVERITY_COLOR[g.severity];
-    sevLabel.textContent = g.severity;
+    dot.style.background = severityColor(g.severity);
+    sevLabel.textContent = severityLabel(g.severity);
     badge.hidden = g.count <= 1;
     badge.textContent = `\u00d7${g.count.toLocaleString()}`;
     const hint = "Click to pin this event on the map";

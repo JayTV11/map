@@ -1,5 +1,5 @@
 import { project } from "./map";
-import { SEVERITY_COLOR, TrafficEvent } from "./types";
+import { severityColor, TrafficEvent } from "./types";
 
 interface ActiveArc {
   x1: number; y1: number; x2: number; y2: number;
@@ -51,7 +51,7 @@ export class ArcEngine {
   private ctx: CanvasRenderingContext2D;
   private active: ActiveArc[] = [];
   private pings: Ping[] = [];
-  private enabledSeverities = new Set<string>(["critical", "major", "high", "unknown"]);
+  private hiddenSeverities = new Set<string>();
   private paused = false;
   private pinned: TrafficEvent | null = null;
   private idleFrames = 0;
@@ -68,7 +68,7 @@ export class ArcEngine {
   }
 
   setPaused(paused: boolean): void { this.paused = paused; }
-  setEnabledSeverities(set: Set<string>): void { this.enabledSeverities = set; }
+  setHiddenSeverities(hidden: Set<string>): void { this.hiddenSeverities = hidden; }
 
   /** Pin a single event as a persistent "missile" -- rendered every frame
    *  until unpin()'d, independent of the severity filter and the
@@ -92,14 +92,14 @@ export class ArcEngine {
    *  aggregator.ts), which draws it thicker and brighter. */
   spawn(event: TrafficEvent, weight = 1): void {
     if (this.paused) return;
-    if (!this.enabledSeverities.has(event.severity)) return;
+    if (this.hiddenSeverities.has(event.severity)) return;
 
     const w = this.wrap.clientWidth, h = this.wrap.clientHeight;
     const geo = computeArcGeometry(event, w, h);
 
     this.active.push({
       ...geo,
-      color: SEVERITY_COLOR[event.severity],
+      color: severityColor(event.severity),
       start: performance.now(),
       duration: 1100 + Math.random() * 900,
       weight,
@@ -137,7 +137,7 @@ export class ArcEngine {
     if (!this.pinned) return;
     const ctx = this.ctx;
     const g = computeArcGeometry(this.pinned, w, h);
-    const color = SEVERITY_COLOR[this.pinned.severity];
+    const color = severityColor(this.pinned.severity);
     const pulse = 0.5 + 0.5 * Math.sin(now / 400);
 
     ctx.save();

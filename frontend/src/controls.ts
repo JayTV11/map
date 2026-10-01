@@ -1,23 +1,11 @@
 import { ArcEngine } from "./arcs";
 
-export function wireControls(engine: ArcEngine): void {
+/** Live toggle, CSV-intensity slider, and the dataset upload button.
+ *  (The severity filter lives in severityUi.ts; picking a file hands it to
+ *  the upload dialog, see ingestDialog.ts.) */
+export function wireControls(engine: ArcEngine, onFile: (file: File) => void): void {
   const liveToggle = document.getElementById("live-toggle") as HTMLInputElement;
   liveToggle.addEventListener("change", () => engine.setPaused(!liveToggle.checked));
-
-  const sevIds = ["critical", "major", "high"] as const;
-  function readSeverities(): Set<string> {
-    const set = new Set<string>(["unknown"]); // always show unclassified events
-    for (const s of sevIds) {
-      const box = document.getElementById(`sev-${s}`) as HTMLInputElement;
-      if (box.checked) set.add(s);
-    }
-    return set;
-  }
-  for (const s of sevIds) {
-    document.getElementById(`sev-${s}`)!.addEventListener("change", () => {
-      engine.setEnabledSeverities(readSeverities());
-    });
-  }
 
   const intensity = document.getElementById("intensity") as HTMLInputElement;
   const intensityLabel = document.getElementById("intensity-label")!;
@@ -33,18 +21,10 @@ export function wireControls(engine: ArcEngine): void {
   });
 
   const fileInput = document.getElementById("csv-file") as HTMLInputElement;
-  fileInput.addEventListener("change", async () => {
+  fileInput.accept = ".csv,.tsv,.txt,.json,.ndjson,.jsonl"; // the page's own filter only allows .csv
+  fileInput.addEventListener("change", () => {
     const file = fileInput.files?.[0];
-    if (!file) return;
-    const body = new FormData();
-    body.append("file", file);
-    const resp = await fetch("/api/upload", { method: "POST", body });
-    if (!resp.ok) {
-      const detail = await resp.json().catch(() => ({ detail: resp.statusText }));
-      alert(`Upload failed: ${detail.detail}`);
-      return;
-    }
-    const result = await resp.json();
-    alert(`Loaded ${result.rows} rows from ${result.filename}. The simulated feed will start firing from it.`);
+    fileInput.value = ""; // so choosing the same file again still fires
+    if (file) onFile(file);
   });
 }

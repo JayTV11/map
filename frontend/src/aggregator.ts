@@ -1,4 +1,4 @@
-import { Severity, TrafficEvent } from "./types";
+import { Severity, severityRank, TrafficEvent } from "./types";
 
 /** Collapses repeated events into groups, and decides when a group is
  *  allowed to draw an arc.
@@ -74,7 +74,6 @@ export interface IngestResult {
   arc: ArcRequest | null;
 }
 
-const SEVERITY_RANK: Record<Severity, number> = { unknown: 0, high: 1, major: 2, critical: 3 };
 
 export function groupKey(e: TrafficEvent): string {
   const src = e.src_ip ?? `${e.src_lat},${e.src_lon}`;
@@ -131,7 +130,7 @@ export class Aggregator {
     group.count += 1;
     group.pending += 1;
     group.lastSeen = now;
-    if (SEVERITY_RANK[event.severity] > SEVERITY_RANK[group.severity]) group.severity = event.severity;
+    if (severityRank(event.severity) > severityRank(group.severity)) group.severity = event.severity;
     if (event.dst_port !== null && group.dstPorts.size < this.opts.maxPortsTracked) {
       group.dstPorts.add(event.dst_port);
     }

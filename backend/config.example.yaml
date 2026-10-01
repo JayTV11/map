@@ -1,0 +1,63 @@
+# Reference for the settings added for "any dataset". You do NOT need to copy this
+# whole file: everything below has a working default. Copy only the parts you want
+# into backend/config.yaml (next to your existing elastic: / server: / buffer: blocks).
+
+# ---- Your severity scale ------------------------------------------------------
+# Any number of levels (1-8), MOST SEVERE FIRST, with your own names and colours.
+# This one setting drives the filter, legend, log colours and the wall headline.
+# Default (used when this block is absent):
+severity:
+  levels:
+    - {id: critical, label: Critical, color: "#ff3868"}
+    - {id: major,    label: Major,    color: "#ff9f2e"}
+    - {id: high,     label: High,     color: "#ffe066"}
+
+# A conventional four-level scale instead:
+#   levels:
+#     - {id: critical, label: Critical, color: "#ff3868"}
+#     - {id: high,     label: High,     color: "#ff9f2e"}
+#     - {id: medium,   label: Medium,   color: "#ffe066"}
+#     - {id: low,      label: Low,      color: "#4fa8ff"}
+#
+# Five levels:
+#   levels:
+#     - {id: critical, label: Critical, color: "#ff3868"}
+#     - {id: high,     label: High,     color: "#ff9f2e"}
+#     - {id: medium,   label: Medium,   color: "#ffe066"}
+#     - {id: low,      label: Low,      color: "#4fa8ff"}
+#     - {id: info,     label: Info,     color: "#8fa3b8"}
+#
+# Rules: ids must be unique, "unknown" is reserved (events that can't be mapped
+# show as Unknown), colours are hex. A mistake here is reported in the server log
+# and the default scale is used rather than the app failing to start.
+
+# ---- Your home site -----------------------------------------------------------
+# Used when a log has a location for only ONE side (say, the attacker but not your
+# own server): the missing side is drawn at this point, and the event's detail
+# panel says so. Also where the star on the map goes.
+home:
+  lat: 36.0104
+  lon: -84.2696
+  label: "Oak Ridge, TN"
+
+# ---- Elastic: how severity values are read -------------------------------------
+# Add these inside your existing elastic: block. Suricata (the default) sends severity
+# as a number, 1 = most severe through 3 = least, so the default is the suricata preset.
+#
+# elastic:
+#   severity_preset: suricata        # suricata | one_to_five | one_to_five_reversed | cvss | syslog
+#   severity_map:                    # optional exact overrides, raw value -> level id
+#     "4": medium
+#   severity_default: unknown        # level for events with no severity at all
+#
+# Presets spread over WHATEVER scale you defined above (the suricata preset puts
+# 1/2/3 on your first, second and last level), so they work for any number of levels.
+#
+# Locations: field_mapping may use separate lat/lon fields (src_lat / src_lon ...) OR a
+# single combined field (src_geo / dst_geo), which may hold {"lat":..,"lon":..},
+# "lat,lon", or a [lon, lat] array:
+#
+# elastic:
+#   field_mapping:
+#     src_geo: source.geo.location
+#     dst_geo: destination.geo.location

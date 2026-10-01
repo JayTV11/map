@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-Severity = Literal["critical", "major", "high", "unknown"]
+Severity = str  # a level id from the configured scale (see severity.py), or "unknown"
 Criticality = Literal["low", "normal", "high", "critical"]
 Direction = Literal["inbound", "outbound", "internal"]
 SourceKind = Literal["csv", "elastic"]
@@ -61,6 +61,11 @@ class TrafficEvent(BaseModel):
     direction: Optional[Direction] = None
 
     source: SourceKind
+
+    # Fields in the source data that weren't mapped to anything above, shown in the detail panel.
+    extra: dict[str, str] = Field(default_factory=dict)
+    # Set when a location was filled in from the home site because the data had none for that side.
+    geo_note: Optional[str] = None
 
     # True when this is a re-fire of a real event still within the buffer's
     # lookback window (see Broadcaster._replay_loop in broadcast.py), rather

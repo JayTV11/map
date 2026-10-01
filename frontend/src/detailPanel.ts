@@ -1,5 +1,5 @@
 import { GroupSummary } from "./aggregator";
-import { AssetRef, SEVERITY_COLOR, TrafficEvent } from "./types";
+import { AssetRef, severityColor, severityLabel, TrafficEvent } from "./types";
 
 /** True for RFC1918 / loopback / link-local IPv4 -- pivots to external
  *  lookup sites are only offered for public addresses so internal IPs
@@ -66,8 +66,8 @@ export class DetailPanel {
     sig.textContent = e.signature ?? "(no signature)";
     const badge = document.createElement("span");
     badge.className = "detail-badge";
-    badge.textContent = e.severity;
-    badge.style.background = SEVERITY_COLOR[e.severity];
+    badge.textContent = severityLabel(e.severity);
+    badge.style.background = severityColor(e.severity);
     this.body.append(badge, sig);
 
     const grouped = summary !== undefined && summary.count > 1;
@@ -81,13 +81,14 @@ export class DetailPanel {
       ["Protocol", e.protocol ? e.protocol.toUpperCase() : null],
       ["Action", e.action],
       ["Category", e.category],
-      ["SID", e.signature_id],
+      ["Rule ID", e.signature_id],
       ["Time", grouped ? null : new Date(e.alert_time ?? e.timestamp).toLocaleString()],
       ["First seen", grouped ? new Date(summary!.firstSeen).toLocaleString() : null],
       ["Last seen", grouped ? new Date(summary!.lastSeen).toLocaleString() : null],
       ["Source geo", `${e.src_lat.toFixed(2)}, ${e.src_lon.toFixed(2)}`],
       ["Dest geo", `${e.dst_lat.toFixed(2)}, ${e.dst_lon.toFixed(2)}`],
-      ["Feed", e.source === "elastic" ? "Live (Elastic)" : "Simulated (CSV)"],
+      ["Location note", e.geo_note],
+      ["Feed", e.source === "elastic" ? "Live (Elastic)" : "Simulated (uploaded data)"],
     ];
     const dl = document.createElement("dl");
     dl.className = "detail-grid";
@@ -98,6 +99,24 @@ export class DetailPanel {
       dl.append(dt, dd);
     }
     this.body.append(dl);
+
+    // Anything in the source data that didn't map to a field above (collapsed by default).
+    const extraKeys = Object.keys(e.extra ?? {});
+    if (extraKeys.length > 0) {
+      const details = document.createElement("details");
+      details.className = "detail-extra";
+      const summaryEl = document.createElement("summary");
+      summaryEl.textContent = `Other fields in the data (${extraKeys.length})`;
+      const extraGrid = document.createElement("dl");
+      extraGrid.className = "detail-grid";
+      for (const k of extraKeys) {
+        const dt = document.createElement("dt"); dt.textContent = k; dt.title = k;
+        const dd = document.createElement("dd"); dd.textContent = e.extra[k];
+        extraGrid.append(dt, dd);
+      }
+      details.append(summaryEl, extraGrid);
+      this.body.append(details);
+    }
 
     const actions = document.createElement("div");
     actions.className = "detail-actions";
@@ -120,7 +139,7 @@ export class DetailPanel {
     copy.className = "btn";
     copy.textContent = "Copy flow";
     copy.addEventListener("click", async () => {
-      const text = `${e.signature ?? "alert"} | ${endpoint(e.src_ip, e.src_port)} -> ${endpoint(e.dst_ip, e.dst_port)} | ${e.severity} | ${e.alert_time ?? e.timestamp}${grouped ? ` | x${summary!.count}` : ""}`;
+      const text = `${e.signature ?? "alert"} | ${endpoint(e.src_ip, e.src_port)} -> ${endpoint(e.dst_ip, e.dst_port)} | ${severityLabel(e.severity)} | ${e.alert_time ?? e.timestamp}${grouped ? ` | x${summary!.count}` : ""}`;
       try { await navigator.clipboard.writeText(text); copy.textContent = "Copied"; }
       catch { copy.textContent = "Copy failed"; }
       setTimeout(() => { copy.textContent = "Copy flow"; }, 1200);

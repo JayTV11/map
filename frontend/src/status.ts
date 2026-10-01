@@ -10,6 +10,7 @@ export interface StatusPayload {
     last_event_at: string | null;
     error: string | null;
     error_since: string | null;
+    skipped_no_geo?: number;
   };
   csv: { loaded: boolean; rows: number; filename: string | null; last_event_at: string | null };
   replay: { enabled: boolean; window_minutes: number };
@@ -100,6 +101,9 @@ export function computeFeedView(i: FeedInputs): FeedView {
   const elasticRecent = realAge < ELASTIC_RECENT_MS;
   const replayRecent = i.replayAt !== null && i.now - i.replayAt < REPLAY_RECENT_MS;
   const simNote = csvRecent ? " \u00b7 simulated data is showing" : "";
+  // Alerts with no usable location can't be drawn. Say so: a map that silently drops events can look calmer than reality.
+  const skipped = s.elastic.skipped_no_geo ?? 0;
+  const skipNote = skipped > 0 ? ` \u00b7 ${skipped.toLocaleString()} alert${skipped === 1 ? "" : "s"} had no location and aren't on the map` : "";
 
   if (s.elastic.configured && s.elastic.error) {
     const since = s.elastic.error_since ? ` since ${clock(s.elastic.error_since)}` : "";
@@ -142,15 +146,15 @@ export function computeFeedView(i: FeedInputs): FeedView {
       return { state: "connecting", tone: "idle", label: "CONNECTING", detail: "Waiting for the first Elastic poll", banner: null };
     }
     if (realAge === Infinity) {
-      return { state: "live", tone: "ok", label: "LIVE", detail: "Elastic connected \u00b7 waiting for the first alert", banner: null };
+      return { state: "live", tone: "ok", label: "LIVE", detail: `Elastic connected \u00b7 waiting for the first alert${skipNote}`, banner: null };
     }
     if (realAge < QUIET_AFTER_MS) {
-      return { state: "live", tone: "ok", label: "LIVE", detail: `Elastic \u00b7 last alert ${fmtAge(realAge)} ago`, banner: null };
+      return { state: "live", tone: "ok", label: "LIVE", detail: `Elastic \u00b7 last alert ${fmtAge(realAge)} ago${skipNote}`, banner: null };
     }
     return {
       state: "quiet", tone: "ok", label: replayRecent ? "LIVE \u00b7 QUIET" : "LIVE",
       detail: `No new alerts for ${fmtAge(realAge)}` +
-        (replayRecent ? " \u00b7 arcs shown are replays of recent alerts" : ""),
+        (replayRecent ? " \u00b7 arcs shown are replays of recent alerts" : "") + skipNote,
       banner: null,
     };
   }

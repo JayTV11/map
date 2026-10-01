@@ -6,15 +6,14 @@ import { CITY_LABELS } from "./city-labels";
 /** Static markers baked into the base map SVG -- unlike ArcEngine's canvas
  *  layer these don't move, fade, or get cleared per-frame. Add more pins
  *  here as needed. */
-interface PointOfInterest {
+export interface PointOfInterest {
   label: string;
   lat: number;
   lon: number;
 }
 
-const POINTS_OF_INTEREST: PointOfInterest[] = [
-  { label: "Oak Ridge, TN", lat: 36.0104, lon: -84.2696 },
-];
+// The home site is set in backend/config.yaml (`home:`) and passed to renderWorldMap().
+const DEFAULT_POINTS: PointOfInterest[] = [{ label: "Oak Ridge, TN", lat: 36.0104, lon: -84.2696 }];
 
 // The SVG's own coordinate space -- must match the 1000x500 used to bake
 // world-path.ts (see mapgen/gen.js).
@@ -36,7 +35,7 @@ const STAR_PATH =
 
 function poiMarker(poi: PointOfInterest): string {
   const [x, y] = toSvgCoords(poi.lat, poi.lon);
-  return `<g class="poi-star" transform="translate(${x},${y}) scale(0.6)"><title>${poi.label}</title><path d="${STAR_PATH}"/></g>`;
+  return `<g class="poi-star" transform="translate(${x},${y}) scale(0.6)"><title>${escapeXml(poi.label)}</title><path d="${STAR_PATH}"/></g>`;
 }
 
 /** Minimal escaping for text pulled from the baked country/city datasets --
@@ -87,7 +86,7 @@ function cityLabelMarkup(name: string, lat: number, lon: number, tier: 1 | 2 | 3
   return `<g class="label-city tier-${tier}"><circle cx="${x}" cy="${y}" r="0.9"/><text x="${x.toFixed(2)}" y="${y.toFixed(2)}">${escapeXml(name)}</text></g>`;
 }
 
-export function renderWorldMap(container: HTMLElement): void {
+export function renderWorldMap(container: HTMLElement, points: PointOfInterest[] = DEFAULT_POINTS): void {
   // "meet" (scale-to-fit, letterboxed) -- not "slice" -- so the whole
   // globe is always visible. "slice" (crop-to-fill) sounds nicer but on
   // most normal window shapes crops a large chunk of longitude off the
@@ -110,7 +109,7 @@ export function renderWorldMap(container: HTMLElement): void {
     <use href="#land-shape" class="halo halo-1"/>
     <use href="#land-shape" class="land"/>
     <path class="borders" d="${WORLD_BORDERS_PATH}"/>
-    ${POINTS_OF_INTEREST.map(poiMarker).join("")}
+    ${points.map(poiMarker).join("")}
     ${COUNTRY_LABELS.map((c) => countryLabelMarkup(c.name, c.lat, c.lon, c.tier)).join("")}
     ${CITY_LABELS.map((c) => cityLabelMarkup(c.name, c.lat, c.lon, c.tier)).join("")}
   </svg>`;

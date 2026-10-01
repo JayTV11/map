@@ -46,6 +46,7 @@ class FeedStatus:
         self.elastic_last_poll_ok: Optional[datetime] = None
         self.elastic_error: Optional[str] = None
         self.elastic_error_since: Optional[datetime] = None
+        self.elastic_skipped_no_geo = 0  # alerts that had no usable location and so are not on the map
         self.last_event: dict[str, Optional[datetime]] = {"elastic": None, "csv": None}
         self.csv_rows = 0
         self.csv_filename: Optional[str] = None
@@ -86,6 +87,7 @@ class FeedStatus:
                 "last_event_at": _iso(self.last_event["elastic"]),
                 "error": self.elastic_error,
                 "error_since": _iso(self.elastic_error_since),
+                "skipped_no_geo": self.elastic_skipped_no_geo,
             },
             "csv": {
                 "loaded": self.csv_rows > 0,

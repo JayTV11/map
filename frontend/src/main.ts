@@ -3,6 +3,7 @@ import "./aggregate.css";
 import "./map-theme.css";
 import "./wall.css";
 import "./assets.css";
+import "./ingest.css";
 import { renderWorldMap } from "./map";
 import { ArcEngine } from "./arcs";
 import { connectTrafficSocket } from "./wsClient";
@@ -16,109 +17,110 @@ import { TalkerStats, TalkersPanel } from "./talkers";
 import { StatusMonitor } from "./status";
 import { Kiosk } from "./kiosk";
 import { Headline } from "./headline";
-import { Severity } from "./types";
+import { loadConfig } from "./config";
+import { SeverityUi } from "./severityUi";
+import { openIngestDialog } from "./ingestDialog";
 
-renderWorldMap(document.getElementById("map-bg")!);
+async function start(): Promise<void> {
+  // The severity scale and the home site come from the backend, so everything
+  // below (filter, legend, headline, colours) reflects YOUR data's scale.
+  const cfg = await loadConfig();
 
-const wrap = document.getElementById("map-wrap")!;
-const mapViewport = document.getElementById("map-viewport")!;
-const canvas = document.getElementById("fx") as HTMLCanvasElement;
-const engine = new ArcEngine(canvas, wrap);
-wireControls(engine);
-const zoom = wireMapZoom(mapViewport, wrap);
+  renderWorldMap(document.getElementById("map-bg")!, [{ label: cfg.home.label, lat: cfg.home.lat, lon: cfg.home.lon }]);
 
-const focus = new FocusController(
-  engine,
-  new DetailPanel(),
-  document.getElementById("focus-banner")!,
-  document.getElementById("focus-dot")!,
-  document.getElementById("focus-text")!,
-  document.getElementById("focus-clear")!,
-);
+  const wrap = document.getElementById("map-wrap")!;
+  const mapViewport = document.getElementById("map-viewport")!;
+  const canvas = document.getElementById("fx") as HTMLCanvasElement;
+  const engine = new ArcEngine(canvas, wrap);
+  const severityUi = new SeverityUi(engine);
+  wireControls(engine, (file) => void openIngestDialog(file, { onLoaded: () => void monitor.refresh() }));
+  const zoom = wireMapZoom(mapViewport, wrap);
 
-// Repeats of the same src -> dst + signature collapse into one group: one
-// log row, and a few weighted arcs instead of one arc per event. Tunables
-// (quiet window, per-group arc interval, global arc budget) live in
-// DEFAULT_OPTIONS in aggregator.ts.
-const aggregator = new Aggregator();
+  const focus = new FocusController(
+    engine,
+    new DetailPanel(),
+    document.getElementById("focus-banner")!,
+    document.getElementById("focus-dot")!,
+    document.getElementById("focus-text")!,
+    document.getElementById("focus-clear")!,
+  );
 
-const TALKER_WINDOW_SEC = 300;
-const talkerStats = new TalkerStats(TALKER_WINDOW_SEC);
-new TalkersPanel(talkerStats, TALKER_WINDOW_SEC, document.getElementById("log-section"));
-// Says out loud whether the map is showing live, simulated, or no data. A
-// dead feed must never look like a quiet network (see status.ts).
-const monitor = new StatusMonitor(document.getElementById("topbar")!, wrap);
+  // Repeats of the same src -> dst + signature collapse into one group: one
+  // log row, and a few weighted arcs instead of one arc per event. Tunables
+  // (quiet window, per-group arc interval, global arc budget) live in
+  // DEFAULT_OPTIONS in aggregator.ts.
+  const aggregator = new Aggregator();
 
-new Headline(talkerStats, TALKER_WINDOW_SEC, wrap, () => monitor.hasAssets); // big counts; only visible in wall mode
+  const TALKER_WINDOW_SEC = 300;
+  const talkerStats = new TalkerStats(TALKER_WINDOW_SEC);
+  new TalkersPanel(talkerStats, TALKER_WINDOW_SEC, document.getElementById("log-section"));
 
-// Press K (or open with ?kiosk=1) for wall-display mode. If someone zooms or
-// pins an event and walks away, it returns to the world view on its own.
-new Kiosk({ onIdle: () => { zoom.reset(); focus.clear(); } });
+  // Says out loud whether the map is showing live, simulated, or no data. A
+  // dead feed must never look like a quiet network (see status.ts).
+  const monitor = new StatusMonitor(document.getElementById("topbar")!, wrap);
 
-const logList = document.getElementById("log-list")!;
-const logRows = new Map<number, LogRow>(); // group id -> its row, while the row is still in the DOM
-const statEps = document.getElementById("stat-eps")!;
-const statActive = document.getElementById("stat-active")!;
-const statTotal = document.getElementById("stat-total")!;
-const sevCountEls: Partial<Record<Severity, HTMLElement>> = {
-  critical: document.getElementById("count-critical")!,
-  major: document.getElementById("count-major")!,
-  high: document.getElementById("count-high")!,
-};
+  new Headline(talkerStats, TALKER_WINDOW_SEC, wrap, () => monitor.hasAssets); // big counts; only visible in wall mode
 
-let total = 0;
-let eventsThisWindow = 0;
-let windowStart = performance.now();
-const sevCounts: Partial<Record<Severity, number>> = { critical: 0, major: 0, high: 0 };
+  // Press K (or open with ?kiosk=1) for wall-display mode. If someone zooms or
+  // pins an event and walks away, it returns to the world view on its own.
+  new Kiosk({ onIdle: () => { zoom.reset(); focus.clear(); } });
 
-engine.onActiveCountChange = (n) => { statActive.textContent = String(n); };
+  const logList = document.getElementById("log-list")!;
+  const logRows = new Map<number, LogRow>(); // group id -> its row, while the row is still in the DOM
+  const statEps = document.getElementById("stat-eps")!;
+  const statActive = document.getElementById("stat-active")!;
+  const statTotal = document.getElementById("stat-total")!;
 
-connectTrafficSocket((event) => {
-  monitor.noteEvent(event);
-  if (event.is_replay) {
-    engine.spawn(event); // renders identically, but stays out of the log/counters/stats
-    return;
-  }
+  let total = 0;
+  let eventsThisWindow = 0;
+  let windowStart = performance.now();
 
-  const now = Date.now();
-  talkerStats.record(event, now);
+  engine.onActiveCountChange = (n) => { statActive.textContent = String(n); };
 
-  const { group, isNew, arc } = aggregator.ingest(event, now);
-  if (arc) engine.spawn(arc.event, arc.weight);
+  connectTrafficSocket((event) => {
+    monitor.noteEvent(event);
+    if (event.is_replay) {
+      engine.spawn(event); // renders identically, but stays out of the log/counters/stats
+      return;
+    }
 
-  if (isNew) {
-    logRows.set(group.id, appendLogEntry(logList, group, (el) => focus.toggle(group, el)));
-  } else {
-    logRows.get(group.id)?.update(group);
-    focus.refresh(group);
-  }
+    const now = Date.now();
+    talkerStats.record(event, now);
 
-  // Stats count every event, not every group -- they show real volume.
-  total += 1;
-  eventsThisWindow += 1;
-  statTotal.textContent = String(total);
+    const { group, isNew, arc } = aggregator.ingest(event, now);
+    if (arc) engine.spawn(arc.event, arc.weight);
 
-  const el = sevCountEls[event.severity];
-  if (el) {
-    sevCounts[event.severity] = (sevCounts[event.severity] ?? 0) + 1;
-    el.textContent = String(sevCounts[event.severity]);
-  }
-}, (connected) => monitor.setWsConnected(connected));
+    if (isNew) {
+      logRows.set(group.id, appendLogEntry(logList, group, (el) => focus.toggle(group, el)));
+    } else {
+      logRows.get(group.id)?.update(group);
+      focus.refresh(group);
+    }
 
-// Draws arcs the aggregator held back (a burst that ended, or the global
-// budget ran out) and forgets log rows the 60-entry cap already removed.
-let ticks = 0;
-setInterval(() => {
-  for (const arc of aggregator.tick(Date.now())) engine.spawn(arc.event, arc.weight);
-  if (++ticks % 20 === 0) {
-    for (const [id, row] of logRows) if (!row.el.isConnected) logRows.delete(id);
-  }
-}, 250);
+    // Stats count every event, not every group -- they show real volume.
+    total += 1;
+    eventsThisWindow += 1;
+    statTotal.textContent = String(total);
+    severityUi.record(event.severity);
+  }, (connected) => monitor.setWsConnected(connected));
 
-setInterval(() => {
-  const now = performance.now();
-  const eps = eventsThisWindow / ((now - windowStart) / 1000);
-  statEps.textContent = eps.toFixed(1);
-  eventsThisWindow = 0;
-  windowStart = now;
-}, 500);
+  // Draws arcs the aggregator held back (a burst that ended, or the global
+  // budget ran out) and forgets log rows the 60-entry cap already removed.
+  let ticks = 0;
+  setInterval(() => {
+    for (const arc of aggregator.tick(Date.now())) engine.spawn(arc.event, arc.weight);
+    if (++ticks % 20 === 0) {
+      for (const [id, row] of logRows) if (!row.el.isConnected) logRows.delete(id);
+    }
+  }, 250);
+
+  setInterval(() => {
+    const now = performance.now();
+    const eps = eventsThisWindow / ((now - windowStart) / 1000);
+    statEps.textContent = eps.toFixed(1);
+    eventsThisWindow = 0;
+    windowStart = now;
+  }, 500);
+}
+
+void start();
