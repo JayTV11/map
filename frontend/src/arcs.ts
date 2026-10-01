@@ -7,10 +7,12 @@ interface ActiveArc {
   color: string;
   start: number;
   duration: number;
+  weight: number;
 }
 
 interface Ping {
   x: number; y: number; color: string; start: number; duration: number;
+  weight: number;
 }
 
 interface ArcGeometry {
@@ -77,7 +79,10 @@ export class ArcEngine {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  spawn(event: TrafficEvent): void {
+  /** `weight` is 1 for a single plain event; the aggregator passes a
+   *  higher value when one arc stands in for many events (see
+   *  aggregator.ts), which draws it thicker and brighter. */
+  spawn(event: TrafficEvent, weight = 1): void {
     if (this.paused) return;
     if (!this.enabledSeverities.has(event.severity)) return;
 
@@ -89,6 +94,7 @@ export class ArcEngine {
       color: SEVERITY_COLOR[event.severity],
       start: performance.now(),
       duration: 1100 + Math.random() * 900,
+      weight,
     });
   }
 
@@ -171,14 +177,17 @@ export class ArcEngine {
       const a = this.active[i];
       const t = (now - a.start) / a.duration;
       if (t >= 1) {
-        this.pings.push({ x: a.x2, y: a.y2, color: a.color, start: now, duration: 650 });
+        this.pings.push({ x: a.x2, y: a.y2, color: a.color, start: now, duration: 650, weight: a.weight });
         this.active.splice(i, 1);
         continue;
       }
+      // weight 1 = a single plain event (looks exactly as before); higher
+      // weights stand in for many events and read heavier.
+      const extra = a.weight - 1;
       ctx.save();
-      ctx.globalAlpha = 0.05 * dim;
+      ctx.globalAlpha = Math.min(0.05 * (1 + extra * 0.8), 0.3) * dim;
       ctx.strokeStyle = a.color;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1 + extra * 0.6;
       ctx.beginPath();
       ctx.moveTo(a.x1, a.y1);
       ctx.quadraticCurveTo(a.cx, a.cy, a.x2, a.y2);
@@ -188,7 +197,8 @@ export class ArcEngine {
       for (let k = 0; k < 6; k++) {
         const tt = Math.max(0, t - k * 0.02);
         const [px, py] = this.arcPoint(a, tt);
-        this.glowDot(px, py, k === 0 ? 3.2 : 2.0, a.color, (1 - k * 0.16) * dim);
+        const base = k === 0 ? 3.2 : 2.0;
+        this.glowDot(px, py, base * (1 + extra * 0.2), a.color, (1 - k * 0.16) * dim);
       }
       if (t < 0.08) {
         this.glowDot(a.x1, a.y1, 3 + (0.08 - t) * 40, a.color, (0.08 - t) * 6 * dim);
@@ -199,15 +209,16 @@ export class ArcEngine {
       const p = this.pings[i];
       const pt = (now - p.start) / p.duration;
       if (pt >= 1) { this.pings.splice(i, 1); continue; }
+      const extra = p.weight - 1;
       ctx.save();
       ctx.globalAlpha = (1 - pt) * dim;
       ctx.strokeStyle = p.color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 + extra * 0.4;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 3 + pt * 22, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 3 + pt * 22 * (1 + extra * 0.15), 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
-      this.glowDot(p.x, p.y, 2.5, p.color, (1 - pt) * dim);
+      this.glowDot(p.x, p.y, 2.5 * (1 + extra * 0.15), p.color, (1 - pt) * dim);
     }
 
     this.drawPinned(now, w, h);

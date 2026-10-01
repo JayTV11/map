@@ -1,3 +1,4 @@
+import { GroupSummary } from "./aggregator";
 import { SEVERITY_COLOR, TrafficEvent } from "./types";
 
 /** True for RFC1918 / loopback / link-local IPv4 -- pivots to external
@@ -14,6 +15,11 @@ function isPrivateIp(ip: string): boolean {
 function endpoint(ip: string | null, port: number | null): string {
   if (!ip) return "?";
   return port !== null ? `${ip}:${port}` : ip;
+}
+
+function formatPorts(ports: number[], limit = 8): string {
+  const shown = ports.slice(0, limit).join(", ");
+  return ports.length > limit ? `${shown} (+${ports.length - limit} more)` : shown;
 }
 
 export class DetailPanel {
@@ -38,7 +44,10 @@ export class DetailPanel {
     if (notify && wasOpen) this.onClose?.();
   }
 
-  show(e: TrafficEvent): void {
+  /** `summary` is present when the event stands for a group of repeats
+   *  (see aggregator.ts); it adds the count, first/last seen and the
+   *  distinct destination ports hit. */
+  show(e: TrafficEvent, summary?: GroupSummary): void {
     this.section.hidden = false;
     this.body.replaceChildren();
 
@@ -51,13 +60,18 @@ export class DetailPanel {
     badge.style.background = SEVERITY_COLOR[e.severity];
     this.body.append(badge, sig);
 
+    const grouped = summary !== undefined && summary.count > 1;
     const rows: [string, string | null][] = [
-      ["Flow", `${endpoint(e.src_ip, e.src_port)} → ${endpoint(e.dst_ip, e.dst_port)}`],
+      ["Flow", `${endpoint(e.src_ip, e.src_port)} \u2192 ${endpoint(e.dst_ip, e.dst_port)}`],
+      ["Count", grouped ? `${summary!.count.toLocaleString()} events` : null],
+      ["Dest ports", grouped && summary!.dstPorts.length > 1 ? formatPorts(summary!.dstPorts) : null],
       ["Protocol", e.protocol ? e.protocol.toUpperCase() : null],
       ["Action", e.action],
       ["Category", e.category],
       ["SID", e.signature_id],
-      ["Time", new Date(e.alert_time ?? e.timestamp).toLocaleString()],
+      ["Time", grouped ? null : new Date(e.alert_time ?? e.timestamp).toLocaleString()],
+      ["First seen", grouped ? new Date(summary!.firstSeen).toLocaleString() : null],
+      ["Last seen", grouped ? new Date(summary!.lastSeen).toLocaleString() : null],
       ["Source geo", `${e.src_lat.toFixed(2)}, ${e.src_lon.toFixed(2)}`],
       ["Dest geo", `${e.dst_lat.toFixed(2)}, ${e.dst_lon.toFixed(2)}`],
       ["Feed", e.source === "elastic" ? "Live (Elastic)" : "Simulated (CSV)"],
@@ -93,7 +107,7 @@ export class DetailPanel {
     copy.className = "btn";
     copy.textContent = "Copy flow";
     copy.addEventListener("click", async () => {
-      const text = `${e.signature ?? "alert"} | ${endpoint(e.src_ip, e.src_port)} -> ${endpoint(e.dst_ip, e.dst_port)} | ${e.severity} | ${e.alert_time ?? e.timestamp}`;
+      const text = `${e.signature ?? "alert"} | ${endpoint(e.src_ip, e.src_port)} -> ${endpoint(e.dst_ip, e.dst_port)} | ${e.severity} | ${e.alert_time ?? e.timestamp}${grouped ? ` | x${summary!.count}` : ""}`;
       try { await navigator.clipboard.writeText(text); copy.textContent = "Copied"; }
       catch { copy.textContent = "Copy failed"; }
       setTimeout(() => { copy.textContent = "Copy flow"; }, 1200);
