@@ -5,6 +5,7 @@ import { connectTrafficSocket } from "./wsClient";
 import { appendLogEntry } from "./eventLog";
 import { wireControls } from "./controls";
 import { wireMapZoom } from "./mapZoom";
+import { FocusController } from "./focus";
 import { Severity } from "./types";
 
 renderWorldMap(document.getElementById("map-bg")!);
@@ -15,6 +16,14 @@ const canvas = document.getElementById("fx") as HTMLCanvasElement;
 const engine = new ArcEngine(canvas, wrap);
 wireControls(engine);
 wireMapZoom(mapViewport, wrap);
+
+const focus = new FocusController(
+  engine,
+  document.getElementById("focus-banner")!,
+  document.getElementById("focus-dot")!,
+  document.getElementById("focus-text")!,
+  document.getElementById("focus-clear")!,
+);
 
 const logList = document.getElementById("log-list")!;
 const statEps = document.getElementById("stat-eps")!;
@@ -37,7 +46,7 @@ connectTrafficSocket((event) => {
   engine.spawn(event);
   if (event.is_replay) return; // renders identically, but stays out of the log/counters
 
-  appendLogEntry(logList, event);
+  appendLogEntry(logList, event, (el) => focus.toggle(event, el));
 
   total += 1;
   eventsThisWindow += 1;
