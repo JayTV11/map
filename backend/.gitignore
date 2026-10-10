@@ -1,0 +1,17 @@
+# Python
+backend/.venv/
+backend/**/__pycache__/
+backend/.env
+*.pyc
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.test-out/
+
+# OS
+.DS_Store
+
+backend/assets.yaml
+backend/known_good.yaml
+mapgen/node_modules/
