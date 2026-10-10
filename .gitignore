@@ -7,8 +7,10 @@ backend/.env
 # Node
 frontend/node_modules/
 frontend/dist/
+frontend/.test-out/
 
 # OS
 .DS_Store
 
 backend/assets.yaml
+backend/known_good.yaml

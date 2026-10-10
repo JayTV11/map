@@ -86,6 +86,40 @@ With `elastic.hosts` empty, start the backend, open the app, and upload
 animation validated in the earlier mockup, just running off the real
 pipeline this time.
 
+## Searching and muting
+
+**Search bar** (top-left of the map, press `/` to jump to it). A KQL-style
+filter over the events the screen has received. It is not a query against
+Elastic, so it can't search history, and it works the same for every data
+source.
+
+```
+severity:(critical or major)
+src_ip:203.0.113.0/24 and not dst_port:443
+source.ip:10.0.0.0/8            # Elastic-style names work too
+signature:*scan*                # * wildcards (unquoted values)
+dst_asset:"Payment API"
+dst_port >= 1024 and protocol:tcp
+10.50.0.0/16                    # a bare address or range matches either side
+```
+
+`and` / `or` / `not` and parentheses work (and binds tighter than or; terms
+side by side are ANDed). Any column that wasn't mapped to a built-in field is
+searchable by its own name. A mistake shows a message under the bar and keeps
+the last good filter. The query is saved in the URL (`?q=...`), so a filtered
+view can be bookmarked or shared. A badge at the bottom of the map always shows
+the active filter and how many events it hid, including in wall mode.
+
+**Known-good sources.** Copy `backend/known_good.example.yaml` to
+`backend/known_good.yaml` (gitignored; it describes your network) and list the
+scanners, probes and partner gateways whose traffic you don't want to see. With
+**Mute known-good sources** on (the default at page load; `?mute=0` starts it
+off), events whose *source* is on the list are hidden from the map, log,
+counters and Top Talkers, and the badge shows how many were muted. The file is
+re-read within a minute of an edit, and a bad edit keeps the previous list.
+Muting only changes what this screen shows; nothing is deleted and Elastic is
+not touched.
+
 ## What's a stub vs. what's real here
 
 This is a scaffold to build on, not a finished app:
@@ -97,7 +131,7 @@ This is a scaffold to build on, not a finished app:
   worth adding if your index turns out to be bursty (flagged during the
   original design discussion, never resolved).
 - No auth/session handling — this is intentionally a single-user, local tool.
-- No automated tests yet.
+- Automated tests cover the search parser and mute logic (`npm test` in `frontend/`) and the known-good list (`python tests/test_known_good.py` in `backend/`); the rest has none yet.
 
 ## Repo layout
 

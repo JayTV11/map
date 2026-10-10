@@ -4,6 +4,7 @@ import "./map-theme.css";
 import "./wall.css";
 import "./assets.css";
 import "./ingest.css";
+import "./filters.css";
 import { renderWorldMap } from "./map";
 import { ArcEngine } from "./arcs";
 import { connectTrafficSocket } from "./wsClient";
@@ -12,7 +13,7 @@ import { wireControls } from "./controls";
 import { wireMapZoom } from "./mapZoom";
 import { FocusController } from "./focus";
 import { DetailPanel } from "./detailPanel";
-import { Aggregator } from "./aggregator";
+import { Aggregator, EventGroup } from "./aggregator";
 import { TalkerStats, TalkersPanel } from "./talkers";
 import { StatusMonitor } from "./status";
 import { Kiosk } from "./kiosk";
@@ -20,6 +21,9 @@ import { Headline } from "./headline";
 import { loadConfig } from "./config";
 import { SeverityUi } from "./severityUi";
 import { openIngestDialog } from "./ingestDialog";
+import { KnownGoodList } from "./knownGood";
+import { EventGate } from "./gate";
+import { ViewFilters } from "./viewFilters";
 
 async function start(): Promise<void> {
   // The severity scale and the home site come from the backend, so everything
@@ -67,6 +71,28 @@ async function start(): Promise<void> {
 
   const logList = document.getElementById("log-list")!;
   const logRows = new Map<number, LogRow>(); // group id -> its row, while the row is still in the DOM
+  const logGroups = new Map<number, EventGroup>();
+
+  // Two ways to hide events: the known-good mute list (ON by default) and the
+  // search bar. Hidden events are counted and the badge on the map says how
+  // many, so nothing is hidden silently. Loaded BEFORE the live socket opens
+  // so the replayed backlog is muted too.
+  const knownGood = new KnownGoodList();
+  const gate = new EventGate(knownGood);
+  await knownGood.refresh();
+  knownGood.startPolling();
+  const extraFields = new Set<string>(); // unmapped column names seen so far, to catch typos in the search bar
+  const viewFilters = new ViewFilters(gate, knownGood, wrap, (name) => extraFields.has(name.toLowerCase()), document.getElementById("detail-section"));
+  // Re-check what's already on screen when the mute switch, the search or the list changes.
+  const recheckLog = (): void => {
+    for (const [id, row] of logRows) {
+      const g = logGroups.get(id);
+      if (g) row.el.hidden = !gate.passes(g.event);
+    }
+    viewFilters.refresh();
+  };
+  gate.onChange = recheckLog;
+  knownGood.onChange = () => gate.listChanged();
   const statEps = document.getElementById("stat-eps")!;
   const statActive = document.getElementById("stat-active")!;
   const statTotal = document.getElementById("stat-total")!;
@@ -78,7 +104,14 @@ async function start(): Promise<void> {
   engine.onActiveCountChange = (n) => { statActive.textContent = String(n); };
 
   connectTrafficSocket((event) => {
-    monitor.noteEvent(event);
+    monitor.noteEvent(event); // before the gate: a feed of only-muted traffic is still a live feed
+    if (extraFields.size < 500) for (const k of Object.keys(event.extra ?? {})) extraFields.add(k.toLowerCase());
+
+    const verdict = gate.verdict(event);
+    if (verdict !== "pass") {
+      if (!event.is_replay) gate.count(verdict);
+      return;
+    }
     if (event.is_replay) {
       engine.spawn(event); // renders identically, but stays out of the log/counters/stats
       return;
@@ -92,6 +125,7 @@ async function start(): Promise<void> {
 
     if (isNew) {
       logRows.set(group.id, appendLogEntry(logList, group, (el) => focus.toggle(group, el)));
+      logGroups.set(group.id, group);
     } else {
       logRows.get(group.id)?.update(group);
       focus.refresh(group);
@@ -108,9 +142,11 @@ async function start(): Promise<void> {
   // budget ran out) and forgets log rows the 60-entry cap already removed.
   let ticks = 0;
   setInterval(() => {
-    for (const arc of aggregator.tick(Date.now())) engine.spawn(arc.event, arc.weight);
+    for (const arc of aggregator.tick(Date.now())) if (gate.passes(arc.event)) engine.spawn(arc.event, arc.weight);
     if (++ticks % 20 === 0) {
-      for (const [id, row] of logRows) if (!row.el.isConnected) logRows.delete(id);
+      for (const [id, row] of logRows) {
+        if (!row.el.isConnected) { logRows.delete(id); logGroups.delete(id); }
+      }
     }
   }, 250);
 

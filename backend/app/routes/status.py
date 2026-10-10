@@ -2,6 +2,7 @@ from fastapi import APIRouter, Response
 
 from ..assets import directory
 from ..config import config
+from ..known_good import known_good
 from ..status import status
 
 router = APIRouter(prefix="/api", tags=["status"])
@@ -16,4 +17,5 @@ async def get_status(response: Response):
         buffer_cfg=config.get("buffer", {}),
     )
     snap["assets"] = directory.info()
+    snap["known_good"] = known_good.info()
     return snap
