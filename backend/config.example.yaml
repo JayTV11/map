@@ -61,3 +61,12 @@ home:
 #   field_mapping:
 #     src_geo: source.geo.location
 #     dst_geo: destination.geo.location
+
+# ---- Wall display: threat level ------------------------------------------------
+# The wall shows NORMAL / ELEVATED / HIGH. By default it LEARNS what is normal from the
+# previous hour (it shows LEARNING for the first ~15 minutes after the page opens). If you
+# know your numbers, set fixed thresholds instead. They are in "score per minute": each
+# event scores 10 for the most severe level, 4 for the next, 2 for the next, 1 for the rest.
+# threat_level:
+#   elevated: 60
+#   high: 200

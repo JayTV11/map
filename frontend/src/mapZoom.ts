@@ -15,6 +15,8 @@
  * touchscreens -- worth adding if this ends up used on tablets.
  */
 
+import { project } from "./map";
+
 const MIN_SCALE = 1;
 const MAX_SCALE = 14;
 
@@ -26,7 +28,13 @@ const MAX_SCALE = 14;
 // collision-checks every label against these exact zoom levels.)
 const CITY_TIER_THRESHOLDS: Record<1 | 2 | 3 | 4, number> = { 1: 2, 2: 4.5, 3: 8, 4: 12 };
 
-export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): { reset: () => void } {
+export interface MapCamera {
+  reset: () => void;
+  /** Smoothly centres on a lat/lon at the given zoom (the wall tour uses this). */
+  focusOn: (lat: number, lon: number, scale: number) => void;
+}
+
+export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): MapCamera {
   let scale = 1;
   let tx = 0;
   let ty = 0;
@@ -73,10 +81,35 @@ export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): { reset: 
     apply();
   }
 
-  function resetView(): void {
+  /** Programmatic moves glide (CSS transition on the viewport); the class comes off again so a
+   *  person dragging or scrolling gets immediate, un-laggy control. */
+  let glideTimer = 0;
+  function glide(): void {
+    viewport.classList.add("camera-glide");
+    window.clearTimeout(glideTimer);
+    glideTimer = window.setTimeout(() => viewport.classList.remove("camera-glide"), 2000);
+  }
+  function stopGlide(): void {
+    window.clearTimeout(glideTimer);
+    viewport.classList.remove("camera-glide");
+  }
+
+  function resetView(animated = false): void {
+    if (animated) glide();
     scale = 1;
     tx = 0;
     ty = 0;
+    apply();
+  }
+
+  function focusOn(lat: number, lon: number, target: number): void {
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    const [cx, cy] = project(lat, lon, w, h);
+    glide();
+    scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, target));
+    tx = w / 2 - cx * scale;
+    ty = h / 2 - cy * scale;
+    clamp();
     apply();
   }
 
@@ -84,6 +117,7 @@ export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): { reset: 
     "wheel",
     (e) => {
       e.preventDefault();
+      stopGlide();
       const factor = Math.exp(-e.deltaY * 0.0015);
       zoomAt(e.clientX, e.clientY, factor);
     },
@@ -110,6 +144,7 @@ export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): { reset: 
   wrap.addEventListener("pointerdown", (e) => {
     if (scale <= MIN_SCALE) return; // nothing to pan when fully zoomed out
     if (!isMapSurfaceEvent(e)) return;
+    stopGlide();
     dragging = true;
     dragStartX = e.clientX;
     dragStartY = e.clientY;
@@ -150,8 +185,8 @@ export function wireMapZoom(viewport: HTMLElement, wrap: HTMLElement): { reset: 
     const r = wrap.getBoundingClientRect();
     zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.6);
   });
-  document.getElementById("zoom-reset")?.addEventListener("click", resetView);
+  document.getElementById("zoom-reset")?.addEventListener("click", () => resetView());
 
   apply();
-  return { reset: resetView };
+  return { reset: () => resetView(true), focusOn };
 }

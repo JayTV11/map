@@ -1,9 +1,13 @@
+import { sourceCountry } from "./countries";
 import { isKeyAsset, severityLevels, TrafficEvent } from "./types";
 
-export type TalkerDim = "src" | "sig" | "dst";
+export type TalkerDim = "src" | "cty" | "sig" | "dst";
 
 interface Bucket {
   src: Map<string, number>;
+  cty: Map<string, number>;
+  /** Running sums of source lat/lon per country, for the centre of its traffic (the wall tour zooms there). */
+  ctyGeo: Map<string, { lat: number; lon: number; n: number }>;
   sig: Map<string, number>;
   dst: Map<string, number>;
   sev: Map<string, number>;
@@ -16,6 +20,12 @@ export type SeverityTotals = Record<string, number> & { total: number };
 export interface Talker {
   name: string;
   count: number;
+}
+
+export interface CountryTalker extends Talker {
+  /** Average source position of this country's traffic in the window. */
+  lat: number;
+  lon: number;
 }
 
 const NO_SIGNATURE = "(no signature)";
@@ -36,7 +46,7 @@ export class TalkerStats {
     const sec = Math.floor(nowMs / 1000);
     let b = this.buckets.get(sec);
     if (!b) {
-      b = { src: new Map(), sig: new Map(), dst: new Map(), sev: new Map(), keyHits: 0 };
+      b = { src: new Map(), cty: new Map(), ctyGeo: new Map(), sig: new Map(), dst: new Map(), sev: new Map(), keyHits: 0 };
       this.buckets.set(sec, b);
       this.evict(sec);
     }
@@ -45,8 +55,40 @@ export class TalkerStats {
     bump(b.src, e.src_asset?.name ?? e.src_ip ?? `${e.src_lat},${e.src_lon}`);
     bump(b.dst, e.dst_asset?.name ?? e.dst_ip ?? `${e.dst_lat},${e.dst_lon}`);
     if (isKeyAsset(e.dst_asset)) b.keyHits += 1;
+    const country = sourceCountry(e);
+    if (country) {
+      bump(b.cty, country);
+      const g = b.ctyGeo.get(country) ?? { lat: 0, lon: 0, n: 0 };
+      g.lat += e.src_lat; g.lon += e.src_lon; g.n += 1;
+      b.ctyGeo.set(country, g);
+    }
     bump(b.sig, e.signature ?? NO_SIGNATURE);
     bump(b.sev, e.severity);
+  }
+
+  /** Total events with a known source country over the window (the denominator for "% of traffic"). */
+  countryTotal(nowMs: number): number {
+    this.evict(Math.floor(nowMs / 1000));
+    let n = 0;
+    for (const b of this.buckets.values()) for (const c of b.cty.values()) n += c;
+    return n;
+  }
+
+  /** Top source countries with the centre of each one's traffic. */
+  topCountries(n: number, nowMs: number): CountryTalker[] {
+    this.evict(Math.floor(nowMs / 1000));
+    const sums = new Map<string, { lat: number; lon: number; n: number }>();
+    for (const b of this.buckets.values()) {
+      for (const [name, g] of b.ctyGeo) {
+        const s = sums.get(name) ?? { lat: 0, lon: 0, n: 0 };
+        s.lat += g.lat; s.lon += g.lon; s.n += g.n;
+        sums.set(name, s);
+      }
+    }
+    return [...sums]
+      .map(([name, s]) => ({ name, count: s.n, lat: s.lat / s.n, lon: s.lon / s.n }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .slice(0, n);
   }
 
   top(dim: TalkerDim, n: number, nowMs: number): Talker[] {
@@ -96,10 +138,12 @@ function bump(m: Map<string, number>, key: string): void {
 
 const TABS: { dim: TalkerDim; label: string }[] = [
   { dim: "src", label: "Sources" },
+  { dim: "cty", label: "Countries" },
   { dim: "sig", label: "Signatures" },
   { dim: "dst", label: "Targets" },
 ];
 const ROWS = 6;
+const ROTATE_MS = 12_000;
 
 /** Sidebar panel showing TalkerStats. Builds its own DOM (no index.html
  *  change needed) and inserts itself above `anchor`. */
@@ -108,6 +152,8 @@ export class TalkersPanel {
   private list = document.createElement("div");
   private tabButtons = new Map<TalkerDim, HTMLButtonElement>();
   private timer: number;
+  private rotateTimer: number;
+  private lastManual = 0;
 
   constructor(private stats: TalkerStats, windowSec: number, anchor: HTMLElement | null) {
     const section = document.createElement("div");
@@ -130,7 +176,7 @@ export class TalkersPanel {
       btn.type = "button";
       btn.className = "talkers-tab";
       btn.textContent = label;
-      btn.addEventListener("click", () => { this.tab = dim; this.render(); });
+      btn.addEventListener("click", () => { this.tab = dim; this.lastManual = Date.now(); this.render(); });
       this.tabButtons.set(dim, btn);
       tabs.append(btn);
     }
@@ -141,9 +187,20 @@ export class TalkersPanel {
 
     this.render();
     this.timer = window.setInterval(() => this.render(), 2000);
+    // In wall mode nobody clicks the tabs, so they take turns: sources, countries, signatures, targets.
+    // A manual click pauses the rotation for a minute.
+    this.rotateTimer = window.setInterval(() => this.rotate(), ROTATE_MS);
   }
 
-  dispose(): void { window.clearInterval(this.timer); }
+  /** Moves to the next tab; only does anything in wall mode and not right after a manual click. */
+  rotate(now = Date.now()): void {
+    if (!document.body.classList.contains("kiosk") || now - this.lastManual < 60_000) return;
+    const i = TABS.findIndex((t) => t.dim === this.tab);
+    this.tab = TABS[(i + 1) % TABS.length].dim;
+    this.render();
+  }
+
+  dispose(): void { window.clearInterval(this.timer); window.clearInterval(this.rotateTimer); }
 
   render(): void {
     for (const [dim, btn] of this.tabButtons) btn.classList.toggle("active", dim === this.tab);
@@ -159,10 +216,12 @@ export class TalkersPanel {
     }
 
     const max = rows[0].count;
+    // Countries read better as a share of traffic than as a raw count.
+    const total = this.tab === "cty" ? this.stats.countryTotal(Date.now()) : 0;
     for (const r of rows) {
       const row = document.createElement("div");
       row.className = "talker-row";
-      row.title = `${r.name} \u2014 ${r.count}`;
+      row.title = `${r.name} \u2014 ${r.count.toLocaleString()}`;
       const bar = document.createElement("div");
       bar.className = "talker-bar";
       bar.style.width = `${Math.max(4, (r.count / max) * 100)}%`;
@@ -171,7 +230,7 @@ export class TalkersPanel {
       name.textContent = r.name;
       const count = document.createElement("span");
       count.className = "talker-count";
-      count.textContent = r.count.toLocaleString();
+      count.textContent = total > 0 ? `${Math.max(1, Math.round((r.count / total) * 100))}%` : r.count.toLocaleString();
       row.append(bar, name, count);
       this.list.append(row);
     }

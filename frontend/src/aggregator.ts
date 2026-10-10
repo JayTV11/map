@@ -158,6 +158,11 @@ export class Aggregator {
 
   get size(): number { return this.groups.size; }
 
+  /** The live group an event belongs to, if it is still going (used to pin an arc clicked on the map). */
+  find(e: TrafficEvent): EventGroup | undefined {
+    return this.groups.get(groupKey(e));
+  }
+
   private tryDraw(g: EventGroup, now: number): ArcRequest | null {
     if (now - g.lastArcAt < this.opts.arcMinIntervalMs) return null;
     if (!this.takeToken(now)) return null;

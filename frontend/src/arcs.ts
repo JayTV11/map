@@ -1,5 +1,6 @@
-import { project } from "./map";
-import { severityColor, TrafficEvent } from "./types";
+import { computeArcGeometry } from "./arcGeometry";
+import { DrawnArc, hitTest } from "./hitTest";
+import { isKeyAsset, severityColor, TrafficEvent } from "./types";
 
 interface ActiveArc {
   x1: number; y1: number; x2: number; y2: number;
@@ -8,31 +9,14 @@ interface ActiveArc {
   start: number;
   duration: number;
   weight: number;
+  /** Aimed at one of your key systems: its landing is drawn bigger and lingers. */
+  key: boolean;
 }
 
 interface Ping {
   x: number; y: number; color: string; start: number; duration: number;
   weight: number;
-}
-
-interface ArcGeometry {
-  x1: number; y1: number; x2: number; y2: number; cx: number; cy: number;
-}
-
-/** Same src/dst -> quadratic-curve-control-point math used for every live
- *  arc. Pulled out so the pinned "missile" (see pin()/unpin() below) can
- *  recompute its geometry fresh every frame from the event's lat/lon,
- *  rather than caching stale pixel coordinates that would drift out of
- *  sync on window resize. */
-function computeArcGeometry(event: TrafficEvent, w: number, h: number): ArcGeometry {
-  const [x1, y1] = project(event.src_lat, event.src_lon, w, h);
-  const [x2, y2] = project(event.dst_lat, event.dst_lon, w, h);
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-  const dx = x2 - x1, dy = y2 - y1;
-  const dist = Math.hypot(dx, dy) || 1;
-  const bow = Math.min(dist * 0.28, 140);
-  const nx = -dy / dist, ny = dx / dist;
-  return { x1, y1, x2, y2, cx: mx + nx * bow, cy: my + ny * bow };
+  key: boolean;
 }
 
 // How much dimmer regular live traffic gets drawn while an event is
@@ -55,6 +39,7 @@ export class ArcEngine {
   private paused = false;
   private pinned: TrafficEvent | null = null;
   private idleFrames = 0;
+  private drawn: DrawnArc[] = []; // recent arcs, for click-to-pin (hitTest.ts)
 
   onActiveCountChange?: (n: number) => void;
 
@@ -77,6 +62,11 @@ export class ArcEngine {
    *  Regular live traffic dims while a pin is active -- see DIM_FACTOR. */
   pin(event: TrafficEvent): void { this.pinned = event; }
   unpin(): void { this.pinned = null; }
+
+  /** The recently drawn event nearest a click, in the map's own (unzoomed) pixel space, or null. */
+  eventAt(x: number, y: number): TrafficEvent | null {
+    return hitTest(this.drawn, x, y, this.wrap.clientWidth, this.wrap.clientHeight, Date.now());
+  }
 
   resize(): void {
     const dpr = window.devicePixelRatio || 1;
@@ -103,7 +93,12 @@ export class ArcEngine {
       start: performance.now(),
       duration: 1100 + Math.random() * 900,
       weight,
+      key: isKeyAsset(event.dst_asset),
     });
+
+    const now = Date.now();
+    this.drawn.push({ event, at: now });
+    if (this.drawn.length > 400) this.drawn.splice(0, this.drawn.length - 300);
   }
 
   private arcPoint(a: ActiveArc, t: number): [number, number] {
@@ -191,7 +186,7 @@ export class ArcEngine {
       const a = this.active[i];
       const t = (now - a.start) / a.duration;
       if (t >= 1) {
-        this.pings.push({ x: a.x2, y: a.y2, color: a.color, start: now, duration: 650, weight: a.weight });
+        this.pings.push({ x: a.x2, y: a.y2, color: a.color, start: now, duration: a.key ? 1500 : 650, weight: a.weight, key: a.key });
         this.active.splice(i, 1);
         continue;
       }
@@ -233,6 +228,24 @@ export class ArcEngine {
       ctx.stroke();
       ctx.restore();
       this.glowDot(p.x, p.y, 2.5 * (1 + extra * 0.15), p.color, (1 - pt) * dim);
+
+      if (p.key) {
+        // A hit on one of YOUR key systems: two wider, slower rings and a steady glow, so it stands
+        // out from ordinary landings even from across the room.
+        for (const [delay, reach] of [[0, 46], [0.22, 64]] as const) {
+          const rt = (pt - delay) / (1 - delay);
+          if (rt <= 0 || rt >= 1) continue;
+          ctx.save();
+          ctx.globalAlpha = (1 - rt) * 0.9 * dim;
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 3.2;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 6 + rt * reach, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        this.glowDot(p.x, p.y, 6, p.color, (1 - pt) * 0.8 * dim);
+      }
     }
 
     this.drawPinned(now, w, h);

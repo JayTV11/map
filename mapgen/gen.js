@@ -17,22 +17,24 @@ const fs = require("fs");
 
 const W = 1000, H = 500;
 
-// "110m" is ~75 KB of land path and stays smooth under zoom/pan. "50m" has
-// nicer coastlines when zoomed in but is ~10x larger (~770 KB of SVG path),
-// which makes the CSS-transform zoom noticeably heavier. world-atlas also
+// "50m" gives crisp coastlines on a large wall display (110m looked blocky);
+// the path is kept small by rounding to 0.1 map unit. "110m" is the lighter fallback. world-atlas also
 // ships "10m"; both need the matching file names below.
-const RES = "110m";
+const RES = "50m";
 
 (async () => {
   const { geoPath, geoEquirectangular } = await import("d3-geo");
 
   const projection = geoEquirectangular().scale(W / (2 * Math.PI)).translate([W / 2, H / 2]).precision(0.1);
-  const path = geoPath(projection).digits(2);
+  const path = geoPath(projection).digits(1);
 
   const land = require(`world-atlas/land-${RES}.json`);
   const countries = require(`world-atlas/countries-${RES}.json`);
 
-  const landD = path(topojson.feature(land, land.objects.land));
+  // Land = the merged countries minus Antarctica: a flat white-ish strip along the bottom
+  // of a world map adds nothing for a SOC wall. (country-geo.ts, the offline country lookup, is separate.)
+  const noAntarctica = countries.objects.countries.geometries.filter((g) => String(g.id) !== "010");
+  const landD = path(topojson.merge(countries, noAntarctica));
   // Interior borders only (a !== b drops the coastline, which the land outline already draws).
   const bordersD = path(topojson.mesh(countries, countries.objects.countries, (a, b) => a !== b));
 

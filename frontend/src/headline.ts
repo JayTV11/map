@@ -1,4 +1,5 @@
 import { TalkerStats } from "./talkers";
+import { ThreatMonitor } from "./threat";
 import { severityColor, severityLevels } from "./types";
 
 /** Big severity counts across the top of the map for wall mode ("last 5
@@ -9,9 +10,17 @@ export class Headline {
   private total = document.createElement("div");
   private keyCell = document.createElement("div");
   private keyNum = document.createElement("div");
+  private threatCell = document.createElement("div");
+  private threatLevel = document.createElement("div");
   private timer: number;
 
-  constructor(private stats: TalkerStats, windowSec: number, parent: HTMLElement, private hasAssets: () => boolean = () => false) {
+  constructor(
+    private stats: TalkerStats,
+    windowSec: number,
+    parent: HTMLElement,
+    private hasAssets: () => boolean = () => false,
+    private threat: ThreatMonitor | null = null,
+  ) {
     const root = document.createElement("div");
     root.id = "headline";
 
@@ -52,6 +61,17 @@ export class Headline {
     totalCell.append(this.total, tn);
     root.append(totalCell);
 
+    // Overall threat level (see threat.ts); only when a monitor was given.
+    if (this.threat) {
+      this.threatCell.className = "hl-cell hl-threat";
+      this.threatLevel.className = "hl-num hl-threat-level";
+      const tl = document.createElement("div");
+      tl.className = "hl-name";
+      tl.textContent = "Threat level";
+      this.threatCell.append(this.threatLevel, tl);
+      root.prepend(this.threatCell);
+    }
+
     parent.append(root);
     this.render();
     this.timer = window.setInterval(() => this.render(), 2000);
@@ -63,6 +83,12 @@ export class Headline {
     this.total.textContent = t.total.toLocaleString();
     this.keyCell.hidden = !this.hasAssets();
     this.keyNum.textContent = this.stats.keyAssetHits(now).toLocaleString();
+    if (this.threat) {
+      const a = this.threat.assess(now);
+      this.threatLevel.textContent = a.level.toUpperCase();
+      this.threatCell.className = `hl-cell hl-threat t-${a.level}`;
+      this.threatCell.title = a.reason;
+    }
   }
 
   dispose(): void { window.clearInterval(this.timer); }

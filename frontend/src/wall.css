@@ -38,7 +38,6 @@ body.kiosk #feed-banner{top:112px;font-size:20px;padding:11px 32px;}
 body.kiosk #zoom-controls,
 body.kiosk #topbar .sub{display:none;}
 /* Keep what a wall needs: the talkers, the log, and the detail panel. Hide the analyst controls. */
-body.kiosk #sidebar > .panel-section:not(#detail-section):not(#talkers-section):not(#log-section){display:none;}
 body.kiosk #sidebar{zoom:1.25;}
 body.kiosk #stats-strip{transform:scale(1.35);transform-origin:left bottom;}
 body.kiosk #legend{transform:scale(1.3);transform-origin:right bottom;}
@@ -49,3 +48,46 @@ body.cursor-hidden,body.cursor-hidden *{cursor:none !important;}
 #kiosk-hint{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:20;padding:8px 18px;border-radius:6px;
   background:rgba(10,18,30,.92);border:1px solid var(--panel-border);color:var(--text);font-size:13px;letter-spacing:.4px;pointer-events:none;}
 #kiosk-hint[hidden]{display:none;}
+
+/* ---- Sightline wall extras ------------------------------------------------ */
+.night-shade{fill:#02060d;opacity:.38;pointer-events:none;}
+#map-viewport.camera-glide{transition:transform 1.6s ease-in-out;}
+
+#brand-logo{height:26px;width:auto;align-self:center;margin-right:6px;}
+body.kiosk #brand-logo{height:44px;}
+
+/* threat level cell inside the headline strip */
+.hl-threat{padding-right:26px;border-right:1px solid var(--panel-border);}
+.hl-threat-level{font-size:24px;letter-spacing:2px;}
+.hl-threat.t-learning .hl-threat-level{color:var(--text-dim);}
+.hl-threat.t-normal .hl-threat-level{color:#3ddc97;}
+.hl-threat.t-elevated .hl-threat-level{color:#ffb84d;}
+.hl-threat.t-high .hl-threat-level{color:#ff5a7a;animation:feedPulse 1.6s ease-in-out infinite;}
+
+/* clock: wall only */
+#wall-clock{display:none;position:absolute;top:14px;right:22px;z-index:5;text-align:right;pointer-events:none;}
+.wc-time{font-size:40px;font-weight:700;line-height:1;color:var(--text-bright);font-variant-numeric:tabular-nums;}
+.wc-sub{font-size:13px;letter-spacing:1px;color:var(--text-dim);margin-top:6px;}
+body.kiosk #wall-clock{display:block;}
+
+/* critical spotlight card: wall only */
+#spotlight{display:none;position:absolute;left:50%;bottom:150px;z-index:6;width:min(900px,60%);padding:18px 30px;
+  transform:translate(-50%,24px);opacity:0;transition:opacity .45s ease,transform .45s ease;pointer-events:none;
+  background:rgba(10,18,30,.9);border:2px solid var(--sp-color,#ff5a7a);border-radius:12px;
+  box-shadow:0 0 36px color-mix(in srgb,var(--sp-color,#ff5a7a) 45%,transparent);backdrop-filter:blur(3px);}
+body.kiosk #spotlight{display:block;}
+body.kiosk #spotlight[hidden]{display:none;}
+#spotlight.in{opacity:1;transform:translate(-50%,0);}
+.sp-tag{font-size:15px;font-weight:800;letter-spacing:3px;}
+.sp-sig{font-size:30px;font-weight:700;color:var(--text-bright);margin:6px 0 8px;line-height:1.15;}
+.sp-flow{font-size:20px;color:var(--text);font-variant-numeric:tabular-nums;}
+.sp-arrow{margin:0 14px;color:var(--text-dim);}
+
+/* wall mode: keep trend + talkers + log + detail; hide analyst tools */
+body.kiosk #sidebar > .panel-section:not(#detail-section):not(#talkers-section):not(#log-section):not(#trend-section){display:none;}
+body.kiosk #replay-chip{display:none;}
+
+/* analyst view: the sidebar now holds more panels, so let it scroll */
+#sidebar{overflow-y:auto;}
+#log-section{min-height:240px;}
+body.kiosk .feed-detail{display:none;}

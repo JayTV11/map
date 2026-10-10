@@ -1,3 +1,4 @@
+import { ChipBar, combineQueries } from "./filterChips";
 import { EventGate } from "./gate";
 import { BUILT_IN_FIELDS, tryCompile } from "./kql";
 import { KnownGoodList } from "./knownGood";
@@ -44,6 +45,7 @@ export class ViewFilters {
   private muteWarn2 = el("div", "mute-line warn");
   private debounce = 0;
   private lastGoodText = "";
+  private chips = new ChipBar();
 
   /** `hasExtraField` says whether an unmapped column of that name has been seen in live data (to flag typos). */
   constructor(
@@ -63,10 +65,10 @@ export class ViewFilters {
     const params = new URLSearchParams(location.search);
     if (params.get("mute") === "0") this.setMute(false);
     const q = params.get("q");
-    if (q) {
-      this.input.value = q;
-      this.apply();
-    }
+    const chipIds = (params.get("chips") ?? "").split(",").filter(Boolean);
+    if (chipIds.length > 0) this.chips.setActive(chipIds);
+    if (q) this.input.value = q;
+    if (q || chipIds.length > 0) this.apply();
 
     this.render();
     window.setInterval(() => this.render(), 1000);
@@ -100,7 +102,12 @@ export class ViewFilters {
     this.msg.setAttribute("role", "status");
     this.buildHelp();
     this.help.hidden = true;
-    bar.append(this.box, this.msg, this.help);
+    this.chips.getSavable = () => {
+      const t = this.input.value.trim();
+      return t !== "" && tryCompile(t).ok ? t : "";
+    };
+    this.chips.onChange = () => this.apply();
+    bar.append(this.box, this.chips.el, this.msg, this.help);
     mapWrap.append(bar);
 
     this.input.addEventListener("input", () => {
@@ -164,24 +171,33 @@ export class ViewFilters {
     const text = this.input.value;
     const result = tryCompile(text);
     this.box.classList.remove("bad");
+    this.chips.updateSave();
 
     if (!result.ok) {
       // Keep showing the last good filter while the text is mid-edit.
       this.box.classList.add("bad");
-      const still = this.gate.hasQuery ? " — still showing the last valid search" : "";
+      const still = this.gate.hasQuery ? " \u2014 still showing the last valid search" : "";
       this.showMsg(result.error.message + still, "bad");
       return;
     }
 
     const unseen = result.query.unknownFields.filter((f) => !this.hasExtraField(f));
     if (unseen.length > 0) {
-      this.showMsg(`No field named "${unseen[0]}" in the data so far — check the spelling (? lists the fields).`, "warn");
+      this.showMsg(`No field named "${unseen[0]}" in the data so far \u2014 check the spelling (? lists the fields).`, "warn");
     } else {
       this.showMsg("", "warn");
     }
 
+    // What is typed, ANDed with any chips that are switched on.
+    const active = this.chips.activeChips();
+    const combined = tryCompile(combineQueries(text, active));
+    if (!combined.ok) { // shouldn't happen (each part compiled on its own); never blank the map over it
+      this.showMsg(combined.error.message, "bad");
+      return;
+    }
     this.lastGoodText = text.trim();
-    this.gate.setQuery(result.query, text);
+    const shown = [...active.map((c) => c.label), text.trim()].filter(Boolean).join(" + ");
+    this.gate.setQuery(combined.query, shown);
     this.writeUrl();
   }
 
@@ -196,6 +212,9 @@ export class ViewFilters {
       const url = new URL(location.href);
       if (this.lastGoodText) url.searchParams.set("q", this.lastGoodText);
       else url.searchParams.delete("q");
+      const ids = this.chips.activeIds;
+      if (ids.length > 0) url.searchParams.set("chips", ids.join(","));
+      else url.searchParams.delete("chips");
       history.replaceState(null, "", url);
     } catch { /* a read-only location (some previews): the filter still works, it just isn't bookmarkable */ }
   }

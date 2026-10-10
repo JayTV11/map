@@ -120,6 +120,27 @@ re-read within a minute of an edit, and a bad edit keeps the previous list.
 Muting only changes what this screen shows; nothing is deleted and Elastic is
 not touched.
 
+## Wall display and analyst tools
+
+**Wall mode** (press `K`, or open `/?kiosk=1`) is laid out for a 16:9 TV:
+
+- **Threat level** (learning / normal / elevated / high) next to the severity counts. It compares the last 5 minutes with this site's own baseline from the prior hour (it says "learning" for the first ~15 minutes after the page loads). To use fixed numbers instead, set `threat_level: {elevated: ..., high: ...}` in `backend/config.yaml` (weighted events per minute; see `config.example.yaml`).
+- **Spotlight card** for the most serious alerts, one at a time. If `assets.yaml` defines key assets, only hits on those qualify.
+- Key-asset hits draw larger impact rings; the map shades night and day; clock with local time and UTC.
+- **Top talkers** rotates through Sources / Countries / Signatures / Targets; the **events-per-minute** strip shows the last hour.
+- After 30 s untouched, a slow **tour** visits home and the busiest source countries. Disable with `?tour=0`.
+- **Logo:** put `logo.svg` or `logo.png` in `frontend/public/` and rebuild.
+
+**Analyst tools** (normal view):
+
+- Click an arc or endpoint to pin it (same as clicking its log row).
+- Quick-filter chips under the search bar, plus saved searches (stored in this browser). `?chips=` and `?q=` in the URL preload them.
+- **Replay & Export:** replay the last 1/5/10 minutes at 5-60x, or export them as CSV.
+- **Alerts:** optional beep and desktop notification for critical hits on key assets (off by default; browsers need a click to allow sound).
+- In the detail panel, **Copy as known-good entry** produces a `known_good.yaml` line.
+
+Replay history and exports live in the browser's memory only (last 10 minutes); closing the page clears them.
+
 ## What's a stub vs. what's real here
 
 This is a scaffold to build on, not a finished app:

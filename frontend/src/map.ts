@@ -60,13 +60,13 @@ function countryLabelMarkup(name: string, lat: number, lon: number, tier: 1 | 2 
 
 /** Faint lat/lon grid every 30 degrees -- no data, just gives the flat
  *  world some structure and a sense of scale. */
-function graticulePath(): string {
+function graticulePath(step = 30): string {
   const d: string[] = [];
-  for (let lon = -150; lon <= 150; lon += 30) {
+  for (let lon = -180 + step; lon < 180; lon += step) {
     const [x] = toSvgCoords(0, lon);
     d.push(`M${x} 0V${SVG_H}`);
   }
-  for (let lat = -60; lat <= 60; lat += 30) {
+  for (let lat = -90 + step; lat < 90; lat += step) {
     const [, y] = toSvgCoords(lat, 0);
     d.push(`M0 ${y}H${SVG_W}`);
   }
@@ -102,12 +102,22 @@ export function renderWorldMap(container: HTMLElement, points: PointOfInterest[]
         <stop class="land-stop-b" offset="1"/>
       </linearGradient>
       <path id="land-shape" d="${WORLD_LAND_PATH}"/>
+      <pattern id="land-dots" width="2.4" height="2.4" patternUnits="userSpaceOnUse">
+        <circle cx="1.2" cy="1.2" r="0.26" class="dot"/>
+      </pattern>
+      <radialGradient id="land-sheen" cx="50%" cy="35%" r="75%">
+        <stop offset="0" class="sheen-a"/>
+        <stop offset="1" class="sheen-b"/>
+      </radialGradient>
     </defs>
-    <path class="graticule" d="${graticulePath()}"/>
+    <path class="graticule-fine" d="${graticulePath(15)}"/>
+    <path class="graticule" d="${graticulePath(30)}"/>
     <use href="#land-shape" class="halo halo-3"/>
     <use href="#land-shape" class="halo halo-2"/>
     <use href="#land-shape" class="halo halo-1"/>
     <use href="#land-shape" class="land"/>
+    <use href="#land-shape" class="land-sheen"/>
+    <use href="#land-shape" class="land-dots"/>
     <path class="borders" d="${WORLD_BORDERS_PATH}"/>
     ${points.map(poiMarker).join("")}
     ${COUNTRY_LABELS.map((c) => countryLabelMarkup(c.name, c.lat, c.lon, c.tier)).join("")}

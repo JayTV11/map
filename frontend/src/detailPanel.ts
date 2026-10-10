@@ -17,6 +17,13 @@ function endpoint(ip: string | null, port: number | null): string {
   return port !== null ? `${ip}:${port}` : ip;
 }
 
+/** The YAML for one known-good entry, indented to paste under `sources:`. The IP is quoted-safe: it comes from the network. */
+export function knownGoodEntry(ip: string, name: string | null): string {
+  const safeIp = /^[0-9a-fA-F:.]+(\/\d{1,3})?$/.test(ip) ? ip : JSON.stringify(ip);
+  const note = name ? `note: ${JSON.stringify(name)}` : "note: ";
+  return `  - ip: ${safeIp}\n    ${note}`;
+}
+
 function assetText(a: AssetRef | null | undefined): string | null {
   return a ? `${a.name} (${a.criticality} priority)` : null;
 }
@@ -145,6 +152,21 @@ export class DetailPanel {
       setTimeout(() => { copy.textContent = "Copy flow"; }, 1200);
     });
     actions.append(copy);
+
+    // A ready-to-paste line for backend/known_good.yaml, for sources that turn out to be harmless.
+    if (e.src_ip) {
+      const kg = document.createElement("button");
+      kg.type = "button";
+      kg.className = "btn";
+      kg.textContent = "Copy as known-good entry";
+      kg.title = "Copies a line to paste under sources: in backend/known_good.yaml";
+      kg.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(knownGoodEntry(e.src_ip!, e.src_asset?.name ?? null)); kg.textContent = "Copied"; }
+        catch { kg.textContent = "Copy failed"; }
+        setTimeout(() => { kg.textContent = "Copy as known-good entry"; }, 1400);
+      });
+      actions.append(kg);
+    }
     this.body.append(actions);
   }
 }

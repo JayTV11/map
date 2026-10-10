@@ -7,10 +7,10 @@
  */
 
 :root{
-  --land-a:#1b2f48;
-  --land-b:#12212f;
-  --coast:#3f7099;
-  --border:#2b4766;
+  --land-a:#20395a;
+  --land-b:#0f1d2e;
+  --coast:#5aa4d6;
+  --border:#33577d;
   --grid:#16263b;
   --label:#5f7f9e;
 }
@@ -68,3 +68,13 @@
 .label-city.tier-4 text{font-size:calc(3.2px / var(--zoom, 1));}
 .label-city circle{r:calc(1.2px / var(--zoom, 1));}
 #map-wrap.zoom-tier-4 .label-city.tier-4{display:block;}
+
+/* ---- Higher-quality look (50m coastlines) --------------------------------- */
+.graticule-fine{fill:none;stroke:#13233a;stroke-width:calc(0.3 / var(--zoom, 1));opacity:.6;}
+.sheen-a{stop-color:#4a86c4;stop-opacity:.20;}
+.sheen-b{stop-color:#0b1624;stop-opacity:0;}
+#map-bg .land-sheen{fill:url(#land-sheen);stroke:none;pointer-events:none;}
+#map-bg .land-dots{fill:url(#land-dots);stroke:none;pointer-events:none;}
+#land-dots .dot{fill:#7fb4e6;opacity:.16;}
+#map-bg .land{stroke-width:calc(0.5 / var(--zoom, 1));}
+.borders{stroke-width:calc(0.3 / var(--zoom, 1));opacity:.85;}

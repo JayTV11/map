@@ -14,3 +14,4 @@ frontend/.test-out/
 
 backend/assets.yaml
 backend/known_good.yaml
+mapgen/node_modules/

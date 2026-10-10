@@ -50,6 +50,9 @@ export class Kiosk {
 
   get isActive(): boolean { return this.active; }
 
+  /** Milliseconds since anyone last touched the screen. */
+  get idleMs(): number { return Date.now() - this.lastActivity; }
+
   toggle(): void {
     if (this.active) this.disable();
     else this.enable(true);
