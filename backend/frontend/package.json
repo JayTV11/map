@@ -1,0 +1,16 @@
+{
+  "name": "traffic-map-frontend",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "esbuild tests/countries.test.ts tests/daynight.test.ts tests/gate.test.ts tests/hitTest.test.ts tests/kql.test.ts tests/layoutState.test.ts tests/spotlight.test.ts tests/threat.test.ts tests/tools.test.ts tests/tour.test.ts tests/trend.test.ts tests/wallExtras.test.ts --bundle --platform=node --format=esm --outdir=.test-out --out-extension:.js=.mjs --log-level=warning && node --test .test-out/countries.test.mjs .test-out/daynight.test.mjs .test-out/gate.test.mjs .test-out/hitTest.test.mjs .test-out/kql.test.mjs .test-out/layoutState.test.mjs .test-out/spotlight.test.mjs .test-out/threat.test.mjs .test-out/tools.test.mjs .test-out/tour.test.mjs .test-out/trend.test.mjs .test-out/wallExtras.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0"
+  }
+}

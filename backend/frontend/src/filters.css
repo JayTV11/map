@@ -1,0 +1,107 @@
+/* Search bar, known-good mute switch and the "what is hidden" badge. Uses theme variables from style.css. */
+
+#filter-bar{position:absolute;top:54px;left:20px;z-index:7;width:min(520px,calc(100% - 330px));min-width:260px;}
+/* When the feed-status banner is showing (simulated / stalled / error), sit below it instead of under it. */
+#feed-banner:not([hidden]) ~ #filter-bar{top:104px;}
+.fb-box{display:flex;align-items:center;gap:6px;padding:0 6px 0 10px;height:34px;border-radius:7px;
+  background:rgba(13,20,32,.82);border:1px solid var(--panel-border);backdrop-filter:blur(3px);}
+.fb-box:focus-within{border-color:var(--accent);background:rgba(13,20,32,.95);}
+.fb-box.bad{border-color:#b02a47;}
+.fb-icon{color:var(--text-dim);font-size:15px;line-height:1;}
+.fb-input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--text-bright);font-size:12.5px;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;}
+.fb-input::placeholder{color:var(--text-dim);font-family:'Segoe UI',system-ui,sans-serif;font-size:11.5px;}
+.fb-clear,.fb-helpbtn{background:none;border:none;color:var(--text-dim);cursor:pointer;padding:2px 6px;line-height:1;}
+.fb-clear{font-size:17px;}
+.fb-helpbtn{font-size:12px;font-weight:700;border:1px solid var(--panel-border);border-radius:50%;width:20px;height:20px;padding:0;}
+.fb-clear:hover,.fb-helpbtn:hover{color:var(--text-bright);}
+.fb-clear[hidden]{display:none;}
+
+.fb-msg{margin-top:5px;padding:5px 10px;border-radius:5px;font-size:11.5px;line-height:1.35;border:1px solid;}
+.fb-msg[hidden]{display:none;}
+.fb-msg.bad{color:#ff8fa5;border-color:#6b1d2e;background:rgba(42,12,20,.92);}
+.fb-msg.warn{color:#ffb84d;border-color:#6b4a14;background:rgba(42,31,10,.92);}
+
+.fb-help{margin-top:5px;padding:10px 12px;border-radius:7px;border:1px solid var(--panel-border);
+  background:rgba(13,20,32,.97);font-size:11.5px;color:var(--text);max-height:60vh;overflow-y:auto;}
+.fb-help[hidden]{display:none;}
+.fb-help-title{font-weight:700;color:var(--text-bright);margin-bottom:4px;}
+.fb-help-note{color:var(--text-dim);line-height:1.45;margin:6px 0;}
+.fb-example{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;gap:1px;cursor:pointer;
+  background:none;border:none;border-top:1px solid #131d2a;padding:6px 4px;color:var(--text-dim);font-size:11px;}
+.fb-example:hover{background:#101a28;}
+.fb-example code{color:var(--accent);font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;}
+
+.mute-info{margin-top:10px;}
+.mute-line{font-size:11.5px;color:var(--text-dim);line-height:1.4;}
+.mute-line.warn{color:#ffb84d;margin-top:4px;}
+
+#gate-badge{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);z-index:5;display:flex;gap:10px;
+  max-width:60%;}
+#gate-badge[hidden]{display:none;}
+.gate-chip{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:12px;font-size:11.5px;
+  font-weight:600;letter-spacing:.3px;border:1px solid;white-space:nowrap;background:rgba(10,18,30,.85);min-width:0;}
+.gate-chip.mute{color:#ffb84d;border-color:#6b4a14;}
+.gate-chip.filter{color:#7cc4ff;border-color:#1f4f7a;}
+.gate-label{font-size:10px;letter-spacing:1.2px;font-weight:700;}
+.gate-query{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:500;max-width:34ch;overflow:hidden;
+  text-overflow:ellipsis;}
+.gate-count{color:var(--text-dim);font-weight:500;}
+
+.log-entry[hidden]{display:none;}
+
+/* Wall mode: no controls, but the badge stays and grows with the other bottom-edge items. */
+body.kiosk #filter-bar{display:none;}
+body.kiosk #gate-badge{bottom:92px;transform:translateX(-50%) scale(1.3);transform-origin:bottom center;}
+.gate-chip[hidden]{display:none;}
+
+/* ---- quick-filter chips ---------------------------------------------------------- */
+.fb-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.fb-chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:12px;font-size:11.5px;cursor:pointer;
+  background:rgba(13,20,32,.82);border:1px solid var(--panel-border);color:var(--text-dim);backdrop-filter:blur(3px);}
+.fb-chip:hover{color:var(--text-bright);border-color:#2b4766;}
+.fb-chip.on{background:#12304f;border-color:var(--accent);color:var(--text-bright);}
+.fb-chip.saved{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;}
+.fb-chip[hidden]{display:none;}
+.fb-save{border-style:dashed;}
+.fb-chip-x{font-size:14px;line-height:1;color:var(--text-dim);margin-left:2px;}
+.fb-chip-x:hover{color:#ff8fa5;}
+
+/* ---- foldable analyst panels, replay chip ---------------------------------------- */
+.tool-actions{display:flex;gap:8px;margin:10px 0 4px;}
+.tool-actions .btn{flex:1;text-align:center;padding:7px 8px;font-size:12px;}
+.tool-info{font-size:11.5px;color:var(--text-dim);line-height:1.4;margin-top:8px;}
+.row select{background:#0f1a29;color:var(--text);border:1px solid var(--panel-border);border-radius:5px;padding:3px 6px;font-size:12px;}
+#replay-chip{position:absolute;bottom:104px;left:50%;transform:translateX(-50%);z-index:6;padding:5px 14px;border-radius:12px;
+  font-size:11.5px;font-weight:700;letter-spacing:.8px;color:#d7a8ff;border:1px solid #5b3a80;background:rgba(26,14,40,.9);white-space:nowrap;}
+#replay-chip[hidden]{display:none;}
+
+/* ---- adjustable right-hand panels (see panelLayout.ts) ----------------------------- */
+.panel-section{position:relative;}
+body:not(.kiosk) .pl-header{cursor:pointer;user-select:none;}
+body:not(.kiosk) .pl-header h2::before,body:not(.kiosk) h2.pl-header::before{content:"\25BE";display:inline-block;width:14px;font-size:10px;color:var(--text-dim);}
+body:not(.kiosk) .pl-collapsed .pl-header h2::before,body:not(.kiosk) .pl-collapsed h2.pl-header::before{content:"\25B8";}
+body:not(.kiosk) .pl-header h2:hover,body:not(.kiosk) h2.pl-header:hover{color:var(--text-bright);}
+body:not(.kiosk) .pl-collapsed{flex:none !important;height:auto !important;min-height:0 !important;padding-bottom:12px;}
+body:not(.kiosk) .pl-collapsed > :not(.pl-header):not(.pl-grip):not(.pl-resize){display:none !important;}
+body:not(.kiosk) .pl-collapsed .pl-header,body:not(.kiosk) .pl-collapsed h2{margin-bottom:0;}
+body:not(.kiosk) .pl-sized{height:var(--pl-h);flex:none;overflow-y:auto;max-height:none;min-height:0;}
+body:not(.kiosk) #log-section.pl-sized{overflow:hidden;min-height:0;}
+
+.pl-grip{position:absolute;left:2px;top:12px;width:14px;line-height:12px;font-size:12px;letter-spacing:-3px;text-align:center;
+  color:var(--text-dim);opacity:.25;cursor:grab;user-select:none;border-radius:3px;z-index:2;}
+.panel-section:hover > .pl-grip,.pl-grip:focus-visible{opacity:.9;}
+.pl-grip:hover{color:var(--text-bright);}
+.pl-grip:focus-visible,.pl-header h2:focus-visible,h2.pl-header:focus-visible{outline:1px solid var(--accent);outline-offset:2px;}
+.pl-resize{position:absolute;left:0;right:0;bottom:-4px;height:8px;cursor:ns-resize;z-index:3;touch-action:none;}
+.pl-resize:hover::after,body.pl-resizing .pl-resize::after{content:"";position:absolute;left:25%;right:25%;top:3px;height:2px;border-radius:1px;background:var(--accent);}
+.pl-dragging{opacity:.45;}
+.pl-drop-before{box-shadow:inset 0 3px 0 var(--accent);}
+.pl-drop-after{box-shadow:inset 0 -3px 0 var(--accent);}
+body.pl-moving,body.pl-moving *{cursor:grabbing !important;user-select:none !important;}
+body.pl-resizing,body.pl-resizing *{cursor:ns-resize !important;user-select:none;}
+.pl-footer{flex:none;padding:6px 18px 10px;text-align:center;}
+.pl-reset{background:none;border:none;color:var(--text-dim);font-size:11px;cursor:pointer;text-decoration:underline;}
+.pl-reset:hover{color:var(--text-bright);}
+.pl-reset[hidden]{display:none;}
+body.kiosk .pl-grip,body.kiosk .pl-resize,body.kiosk .pl-footer{display:none;}

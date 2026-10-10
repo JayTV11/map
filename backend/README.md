@@ -137,6 +137,7 @@ not touched.
 - Quick-filter chips under the search bar, plus saved searches (stored in this browser). `?chips=` and `?q=` in the URL preload them.
 - **Replay & Export:** replay the last 1/5/10 minutes at 5-60x, or export them as CSV.
 - **Alerts:** optional beep and desktop notification for critical hits on key assets (off by default; browsers need a click to allow sound).
+- **Arrange the right-hand column:** click a panel title to fold it, drag the grip (the dots in its left margin, or focus it and press Alt+Up/Down) to move it, and drag its bottom edge to resize it (double-click the edge to undo). The layout is remembered in that browser, and "Reset panel layout" appears at the bottom once you've changed it. Wall mode ignores folding and sizes.
 - In the detail panel, **Copy as known-good entry** produces a `known_good.yaml` line.
 
 Replay history and exports live in the browser's memory only (last 10 minutes); closing the page clears them.
