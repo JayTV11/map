@@ -68,11 +68,6 @@ body.kiosk #gate-badge{bottom:92px;transform:translateX(-50%) scale(1.3);transfo
 .fb-chip-x:hover{color:#ff8fa5;}
 
 /* ---- foldable analyst panels, replay chip ---------------------------------------- */
-.fold-head{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;}
-.fold-head::after{content:"\25BE";font-size:11px;color:var(--text-dim);}
-.panel-section.collapsed .fold-head{margin-bottom:0;}
-.panel-section.collapsed .fold-head::after{content:"\25B8";}
-.panel-section.collapsed .fold-body{display:none;}
 .tool-actions{display:flex;gap:8px;margin:10px 0 4px;}
 .tool-actions .btn{flex:1;text-align:center;padding:7px 8px;font-size:12px;}
 .tool-info{font-size:11.5px;color:var(--text-dim);line-height:1.4;margin-top:8px;}
@@ -80,3 +75,33 @@ body.kiosk #gate-badge{bottom:92px;transform:translateX(-50%) scale(1.3);transfo
 #replay-chip{position:absolute;bottom:104px;left:50%;transform:translateX(-50%);z-index:6;padding:5px 14px;border-radius:12px;
   font-size:11.5px;font-weight:700;letter-spacing:.8px;color:#d7a8ff;border:1px solid #5b3a80;background:rgba(26,14,40,.9);white-space:nowrap;}
 #replay-chip[hidden]{display:none;}
+
+/* ---- adjustable right-hand panels (see panelLayout.ts) ----------------------------- */
+.panel-section{position:relative;}
+body:not(.kiosk) .pl-header{cursor:pointer;user-select:none;}
+body:not(.kiosk) .pl-header h2::before,body:not(.kiosk) h2.pl-header::before{content:"\25BE";display:inline-block;width:14px;font-size:10px;color:var(--text-dim);}
+body:not(.kiosk) .pl-collapsed .pl-header h2::before,body:not(.kiosk) .pl-collapsed h2.pl-header::before{content:"\25B8";}
+body:not(.kiosk) .pl-header h2:hover,body:not(.kiosk) h2.pl-header:hover{color:var(--text-bright);}
+body:not(.kiosk) .pl-collapsed{flex:none !important;height:auto !important;min-height:0 !important;padding-bottom:12px;}
+body:not(.kiosk) .pl-collapsed > :not(.pl-header):not(.pl-grip):not(.pl-resize){display:none !important;}
+body:not(.kiosk) .pl-collapsed .pl-header,body:not(.kiosk) .pl-collapsed h2{margin-bottom:0;}
+body:not(.kiosk) .pl-sized{height:var(--pl-h);flex:none;overflow-y:auto;max-height:none;min-height:0;}
+body:not(.kiosk) #log-section.pl-sized{overflow:hidden;min-height:0;}
+
+.pl-grip{position:absolute;left:2px;top:12px;width:14px;line-height:12px;font-size:12px;letter-spacing:-3px;text-align:center;
+  color:var(--text-dim);opacity:.25;cursor:grab;user-select:none;border-radius:3px;z-index:2;}
+.panel-section:hover > .pl-grip,.pl-grip:focus-visible{opacity:.9;}
+.pl-grip:hover{color:var(--text-bright);}
+.pl-grip:focus-visible,.pl-header h2:focus-visible,h2.pl-header:focus-visible{outline:1px solid var(--accent);outline-offset:2px;}
+.pl-resize{position:absolute;left:0;right:0;bottom:-4px;height:8px;cursor:ns-resize;z-index:3;touch-action:none;}
+.pl-resize:hover::after,body.pl-resizing .pl-resize::after{content:"";position:absolute;left:25%;right:25%;top:3px;height:2px;border-radius:1px;background:var(--accent);}
+.pl-dragging{opacity:.45;}
+.pl-drop-before{box-shadow:inset 0 3px 0 var(--accent);}
+.pl-drop-after{box-shadow:inset 0 -3px 0 var(--accent);}
+body.pl-moving,body.pl-moving *{cursor:grabbing !important;user-select:none !important;}
+body.pl-resizing,body.pl-resizing *{cursor:ns-resize !important;user-select:none;}
+.pl-footer{flex:none;padding:6px 18px 10px;text-align:center;}
+.pl-reset{background:none;border:none;color:var(--text-dim);font-size:11px;cursor:pointer;text-decoration:underline;}
+.pl-reset:hover{color:var(--text-bright);}
+.pl-reset[hidden]{display:none;}
+body.kiosk .pl-grip,body.kiosk .pl-resize,body.kiosk .pl-footer{display:none;}

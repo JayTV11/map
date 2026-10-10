@@ -10,23 +10,14 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return e;
 }
 
-/** A sidebar section whose heading folds it open and shut. */
+/** A sidebar section. Folding it open and shut is handled for every panel by PanelLayout
+ *  (these two start folded, via data-collapsed). */
 function foldable(id: string, title: string, collapsed: boolean): { section: HTMLElement; body: HTMLElement } {
-  const section = el("div", "panel-section foldable");
+  const section = el("div", "panel-section");
   section.id = id;
-  const h2 = el("h2", "fold-head", title);
-  h2.tabIndex = 0;
-  h2.setAttribute("role", "button");
+  if (collapsed) section.dataset.collapsed = "1";
+  const h2 = el("h2", undefined, title);
   const body = el("div", "fold-body");
-  const set = (c: boolean) => {
-    section.classList.toggle("collapsed", c);
-    h2.setAttribute("aria-expanded", String(!c));
-  };
-  h2.addEventListener("click", () => set(!section.classList.contains("collapsed")));
-  h2.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); set(!section.classList.contains("collapsed")); }
-  });
-  set(collapsed);
   section.append(h2, body);
   return { section, body };
 }

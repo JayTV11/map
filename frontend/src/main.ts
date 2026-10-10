@@ -34,6 +34,7 @@ import { wireMapPick } from "./mapPick";
 import { EventHistory, Replayer } from "./replay";
 import { Alerter, AlertGate } from "./alerts";
 import { AnalystTools } from "./analystTools";
+import { PanelLayout } from "./panelLayout";
 
 async function start(): Promise<void> {
   // The severity scale and the home site come from the backend, so everything
@@ -132,6 +133,7 @@ async function start(): Promise<void> {
     }
     viewFilters.refresh();
   };
+  new PanelLayout(document.getElementById("sidebar")!); // fold / resize / reorder the right-hand panels; every panel exists by now
   gate.onChange = recheckLog;
   knownGood.onChange = () => gate.listChanged();
   const statEps = document.getElementById("stat-eps")!;
