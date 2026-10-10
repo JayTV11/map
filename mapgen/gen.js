@@ -13,6 +13,7 @@
  *  Run:  npm install && node gen.js
  */
 const topojson = require("topojson-client");
+const { presimplify, simplify, quantile } = require("topojson-simplify");
 const fs = require("fs");
 
 const W = 1000, H = 500;
@@ -21,6 +22,8 @@ const W = 1000, H = 500;
 // the path is kept small by rounding to 0.1 map unit. "110m" is the lighter fallback. world-atlas also
 // ships "10m"; both need the matching file names below.
 const RES = "50m";
+// Minimum triangle area (in degrees squared) a coastline vertex must add to be kept. Higher = lighter map.
+const SIMPLIFY_AREA = Number(process.env.SIMPLIFY || 0.06);
 
 (async () => {
   const { geoPath, geoEquirectangular } = await import("d3-geo");
@@ -29,7 +32,10 @@ const RES = "50m";
   const path = geoPath(projection).digits(1);
 
   const land = require(`world-atlas/land-${RES}.json`);
-  const countries = require(`world-atlas/countries-${RES}.json`);
+  const rawCountries = require(`world-atlas/countries-${RES}.json`);
+  // Drop detail you cannot see at wall size (sub-pixel wiggles). Keeps the map light enough to zoom smoothly.
+  const pre = presimplify(rawCountries);
+  const countries = simplify(pre, SIMPLIFY_AREA);
 
   // Land = the merged countries minus Antarctica: a flat white-ish strip along the bottom
   // of a world map adds nothing for a SOC wall. (country-geo.ts, the offline country lookup, is separate.)

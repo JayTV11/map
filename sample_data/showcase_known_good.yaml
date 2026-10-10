@@ -1,0 +1,7 @@
+# Demo list for showcase.csv: the internal vulnerability scanner and the monitoring
+# probes that fill the CSV with noise. Copy to backend/known_good.yaml.
+sources:
+  - ip: 10.20.5.14
+    note: Nessus scanner
+  - cidr: 10.20.9.0/24
+    note: Monitoring probes
