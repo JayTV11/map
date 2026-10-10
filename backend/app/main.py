@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
         task.cancel()
 
 
-app = FastAPI(title="Traffic Map", lifespan=lifespan)
+app = FastAPI(title="Sightline", lifespan=lifespan)
 
 app.include_router(upload.router)
 app.include_router(controls.router)

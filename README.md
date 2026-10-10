@@ -1,4 +1,4 @@
-# Traffic Map
+# Sightline
 
 A local-only "missile map" visualization: animated arcs on a world map showing
 traffic by geolocation, fed either by a CSV upload or by polling a live SIEM

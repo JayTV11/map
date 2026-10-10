@@ -144,7 +144,7 @@ export class IngestDialog {
       ok = resp.ok;
       data = await resp.json();
     } catch {
-      data = { detail: "Couldn't reach the Traffic Map server" };
+      data = { detail: "Couldn't reach the Sightline server" };
     }
     if (mine !== this.seq || this.closed) return; // a newer change superseded this response
     if (!ok) {

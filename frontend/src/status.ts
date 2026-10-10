@@ -77,12 +77,12 @@ export function computeFeedView(i: FeedInputs): FeedView {
   if (serverUnreachable) {
     return {
       state: "offline", tone: "bad", label: "OFFLINE",
-      detail: "Lost connection to the Traffic Map server \u2014 retrying",
+      detail: "Lost connection to the Sightline server \u2014 retrying",
       banner: "NO LIVE DATA \u2014 DISPLAY DISCONNECTED",
     };
   }
   if (!s || !i.wsConnected) {
-    return { state: "connecting", tone: "idle", label: "CONNECTING", detail: "Contacting the Traffic Map server", banner: null };
+    return { state: "connecting", tone: "idle", label: "CONNECTING", detail: "Contacting the Sightline server", banner: null };
   }
 
   // Server clock, extrapolated, so ages are right even if this machine's clock is off.
