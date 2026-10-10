@@ -18,7 +18,7 @@ from typing import Any, Callable, Optional
 from pydantic import BaseModel
 
 UNKNOWN_ID = "unknown"
-UNKNOWN = {"id": UNKNOWN_ID, "label": "Unknown", "color": "#6b7f93"}
+UNKNOWN = {"id": UNKNOWN_ID, "label": "Unknown", "color": "#4f8cff"}
 
 DEFAULT_LEVELS = [
     {"id": "critical", "label": "Critical", "color": "#ff3868"},

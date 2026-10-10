@@ -12,7 +12,7 @@ const DEFAULT_CONFIG: AppConfig = {
       { id: "major", label: "Major", color: "#ff9f2e" },
       { id: "high", label: "High", color: "#ffe066" },
     ],
-    unknown: { id: "unknown", label: "Unknown", color: "#6b7f93" },
+    unknown: { id: "unknown", label: "Unknown", color: "#4f8cff" },
   },
   home: { lat: 36.0104, lon: -84.2696, label: "Oak Ridge, TN" },
 };

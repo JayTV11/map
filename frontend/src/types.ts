@@ -7,7 +7,7 @@ export interface SeverityLevel {
   color: string;
 }
 
-const UNKNOWN_LEVEL: SeverityLevel = { id: "unknown", label: "Unknown", color: "#6b7f93" };
+const UNKNOWN_LEVEL: SeverityLevel = { id: "unknown", label: "Unknown", color: "#4f8cff" };
 const DEFAULT_LEVELS: SeverityLevel[] = [
   { id: "critical", label: "Critical", color: "#ff3868" },
   { id: "major", label: "Major", color: "#ff9f2e" },
