@@ -1,0 +1,80 @@
+/* Map look: loaded after style.css (see main.ts), so these override the
+ * base map styles without editing it.
+ *
+ * --zoom is set on #map-wrap by mapZoom.ts. Stroke widths are written as
+ * (screen-ish width / zoom) so lines stay hairline-thin at any zoom level
+ * instead of getting thicker as the map is scaled up.
+ */
+
+:root{
+  --land-a:#20395a;
+  --land-b:#0f1d2e;
+  --coast:#5aa4d6;
+  --border:#33577d;
+  --grid:#16263b;
+  --label:#5f7f9e;
+}
+
+/* Ocean: a brighter center fading to near-black edges gives depth. */
+#map-wrap{background:radial-gradient(ellipse at 50% 42%, #112540 0%, #0a1626 48%, #060a11 100%);}
+
+.land-stop-a{stop-color:var(--land-a);}
+.land-stop-b{stop-color:var(--land-b);}
+
+.graticule{fill:none;stroke:var(--grid);stroke-width:calc(0.45 / var(--zoom, 1));opacity:.75;}
+
+/* Soft coastal glow: three wide, faint strokes of the land shape under the land itself. */
+.halo{fill:none;stroke:#2aa9ff;stroke-linejoin:round;pointer-events:none;}
+.halo-3{stroke-width:calc(7 / var(--zoom, 1));opacity:.025;}
+.halo-2{stroke-width:calc(4.5 / var(--zoom, 1));opacity:.04;}
+.halo-1{stroke-width:calc(2.4 / var(--zoom, 1));opacity:.07;}
+
+#map-bg .land{fill:url(#land-grad);stroke:var(--coast);stroke-width:calc(0.6 / var(--zoom, 1));stroke-linejoin:round;}
+.borders{fill:none;stroke:var(--border);stroke-width:calc(0.4 / var(--zoom, 1));stroke-linejoin:round;pointer-events:none;}
+
+/* Country labels, tiered by area (see map.ts). Big countries always show;
+   smaller ones appear as you zoom in. The existing fade-at-deep-zoom
+   opacity rules in style.css still apply on top of this. */
+.label-country{fill:var(--label);font-size:4.2px;letter-spacing:.9px;font-weight:600;}
+.label-country.ctier-1{font-size:5px;fill:#6e8fae;}
+.label-country.ctier-3{font-size:3.2px;}
+.label-country.ctier-2,.label-country.ctier-3{display:none;}
+#map-wrap.zoom-tier-1 .label-country.ctier-2{display:inline;}
+#map-wrap.zoom-tier-2 .label-country.ctier-3{display:inline;}
+
+/* ---- Constant on-screen label size --------------------------------------
+ * Labels used to be sized in map units, so they grew with the map: two
+ * labels that overlapped at 1x overlapped at every zoom, and city names
+ * became enormous when zoomed in. Dividing by --zoom keeps text the same
+ * size on screen, so zooming in spreads labels apart like a normal map.
+ * The sizes below are what mapgen/gen-labels.js assumes when it collision-
+ * checks label tiers -- change them together.
+ */
+.label-country{font-size:calc(4.2px / var(--zoom, 1));letter-spacing:calc(0.9px / var(--zoom, 1));stroke-width:calc(1.4px / var(--zoom, 1));}
+.label-country.ctier-1{font-size:calc(5px / var(--zoom, 1));}
+.label-country.ctier-3{font-size:calc(3.6px / var(--zoom, 1));}
+.label-country.ctier-4{font-size:calc(3.2px / var(--zoom, 1));}
+/* ctier-2..4 reveal at the 2x / 4.5x / 8x zoom tiers (see mapZoom.ts) */
+.label-country.ctier-4{display:none;}
+#map-wrap.zoom-tier-3 .label-country.ctier-4{display:inline;}
+/* style.css fades country names at deep zoom because they used to balloon; no longer needed */
+#map-wrap.zoom-tier-2 .label-country,
+#map-wrap.zoom-tier-3 .label-country{opacity:1;}
+
+.label-city text{font-size:calc(4.4px / var(--zoom, 1));stroke-width:calc(1.1px / var(--zoom, 1));
+  transform:translate(calc(2.2px / var(--zoom, 1)), calc(1.2px / var(--zoom, 1)));}
+.label-city.tier-2 text{font-size:calc(3.8px / var(--zoom, 1));}
+.label-city.tier-3 text{font-size:calc(3.4px / var(--zoom, 1));}
+.label-city.tier-4 text{font-size:calc(3.2px / var(--zoom, 1));}
+.label-city circle{r:calc(1.2px / var(--zoom, 1));}
+#map-wrap.zoom-tier-4 .label-city.tier-4{display:block;}
+
+/* ---- Higher-quality look (50m coastlines) --------------------------------- */
+.graticule-fine{fill:none;stroke:#13233a;stroke-width:calc(0.3 / var(--zoom, 1));opacity:.6;}
+.sheen-a{stop-color:#4a86c4;stop-opacity:.20;}
+.sheen-b{stop-color:#0b1624;stop-opacity:0;}
+#map-bg .land-sheen{fill:url(#land-sheen);stroke:none;pointer-events:none;}
+#map-bg .land-dots{fill:url(#land-dots);stroke:none;pointer-events:none;}
+#land-dots .dot{fill:#7fb4e6;opacity:.16;}
+#map-bg .land{stroke-width:calc(0.5 / var(--zoom, 1));}
+.borders{stroke-width:calc(0.3 / var(--zoom, 1));opacity:.85;}
