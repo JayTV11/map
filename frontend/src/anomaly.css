@@ -1,0 +1,17 @@
+/* "How unusual is this?" score: log-row badge and detail block. See backend/app/anomaly.py. */
+:root{--an-unusual:#c79bff;--an-uncommon:#8fb4d9;}
+.log-an{font-size:10px;font-weight:700;line-height:15px;padding:0 5px;border-radius:3px;flex-shrink:0;border:1px solid;font-variant-numeric:tabular-nums;}
+.log-an[hidden]{display:none;}
+.log-an.an-unusual{color:var(--an-unusual);border-color:#5b3a80;background:#1c1030;}
+.log-an.an-uncommon{color:var(--an-uncommon);border-color:#2b4766;background:#0f1c2d;}
+.log-an.an-learning{border-style:dashed;opacity:.65;}
+
+.detail-anomaly{margin:10px 0 12px;padding:8px 10px;border-radius:6px;border:1px solid #2b4766;background:#0f1c2d;}
+.detail-anomaly .an-head{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--an-uncommon);}
+.detail-anomaly ul{margin:6px 0 0;padding-left:16px;font-size:12px;line-height:1.45;color:var(--text);}
+.detail-anomaly.an-unusual{border-color:#5b3a80;background:#1c1030;}
+.detail-anomaly.an-unusual .an-head{color:var(--an-unusual);}
+.detail-anomaly.an-usual .an-head{color:var(--text-dim);}
+.detail-anomaly.an-learning{border-style:dashed;}
+
+.sp-why{margin-top:8px;font-size:17px;color:var(--an-unusual);}

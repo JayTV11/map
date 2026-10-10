@@ -36,5 +36,8 @@ Delete `backend/known_good.yaml` (and `assets.yaml` if you copied it just for th
 | Type `src_ip:198.51.100.0/24 and not action:blocked` | KQL-style search; `?` next to the bar lists the syntax |
 | Click any arc or its endpoint | Pins that event and opens its details |
 | In the detail panel, click **Copy as known-good entry** | A ready-to-paste line for `known_good.yaml` |
+| Wait about a minute, then watch the log | Purple numbers appear on the odd rows. Normal traffic scores around 25 (no badge); the one-off intrusions (Kenya, Venezuela, Kazakhstan, Belarus, Chile) score 65-90 |
+| Click a row with a purple number | **Unusualness** box in the detail panel with the reasons, e.g. "First time seen: source country Kazakhstan" |
+| Click the **Unusual** chip, or type `anomaly_score >= 70` | Only the unusual events |
 | Open **Replay & Export**, then **Play replay** | The last few minutes replay at 5-60x; **Export CSV** downloads them |
 | Open **Alerts** and switch them on | A beep and desktop notification on each critical key-asset hit |

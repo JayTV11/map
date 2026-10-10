@@ -61,11 +61,29 @@ export class DetailPanel {
     if (notify && wasOpen) this.onClose?.();
   }
 
+  private anomalyBlock(a: NonNullable<TrafficEvent["anomaly"]>): HTMLElement {
+    const box = document.createElement("div");
+    box.className = `detail-anomaly an-${a.level}${a.learning ? " an-learning" : ""}`;
+    const head = document.createElement("div");
+    head.className = "an-head";
+    const label = { usual: "Usual", uncommon: "Uncommon", unusual: "Unusual" }[a.level];
+    head.textContent = `Unusualness ${a.score}/100 \u00b7 ${label}${a.learning ? " (provisional, still learning this network)" : ""}`;
+    const list = document.createElement("ul");
+    for (const r of a.reasons) {
+      const li = document.createElement("li");
+      li.textContent = r;
+      list.append(li);
+    }
+    box.append(head, list);
+    return box;
+  }
+
   /** `summary` is present when the event stands for a group of repeats
    *  (see aggregator.ts); it adds the count, first/last seen and the
    *  distinct destination ports hit. */
   show(e: TrafficEvent, summary?: GroupSummary): void {
     this.section.hidden = false;
+    this.section.scrollIntoView({ block: "nearest" }); // the column may be scrolled; an opened detail must be seen
     this.body.replaceChildren();
 
     const sig = document.createElement("div");
@@ -76,6 +94,7 @@ export class DetailPanel {
     badge.textContent = severityLabel(e.severity);
     badge.style.background = severityColor(e.severity);
     this.body.append(badge, sig);
+    if (e.anomaly) this.body.append(this.anomalyBlock(e.anomaly));
 
     const grouped = summary !== undefined && summary.count > 1;
     const rows: [string, string | null][] = [

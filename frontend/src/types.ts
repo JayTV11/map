@@ -54,6 +54,15 @@ export function isKeyAsset(a: AssetRef | null | undefined): boolean {
   return a?.criticality === "high" || a?.criticality === "critical";
 }
 
+/** How unusual an event is compared with what this network has seen before (backend/app/anomaly.py). */
+export interface Anomaly {
+  score: number; // 0-100, higher = rarer
+  level: "usual" | "uncommon" | "unusual";
+  reasons: string[];
+  /** Not enough history yet to trust the score. */
+  learning: boolean;
+}
+
 export interface TrafficEvent {
   id: string;
   timestamp: string; // ISO 8601, assigned by the backend at emission time
@@ -81,6 +90,8 @@ export interface TrafficEvent {
   extra: Record<string, string>;
   /** Set when a location was filled in from the home site because the data had none. */
   geo_note: string | null;
+  /** Present when the backend scored the event. */
+  anomaly?: Anomaly | null;
   source: "csv" | "elastic";
   is_replay: boolean;
 }

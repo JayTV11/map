@@ -133,7 +133,10 @@ export class SpotlightView {
     const flow = el("div", "sp-flow");
     flow.append(el("span", "sp-from", from), el("span", "sp-arrow", "→"), el("span", "sp-to", to));
 
-    this.root.replaceChildren(tag, sig, flow);
+    const nodes = [tag, sig, flow];
+    const an = e.anomaly;
+    if (an && an.level === "unusual" && !an.learning && an.reasons[0]) nodes.push(el("div", "sp-why", `Unusual: ${an.reasons[0]}`));
+    this.root.replaceChildren(...nodes);
     this.root.style.setProperty("--sp-color", color);
     this.root.hidden = false;
     void this.root.offsetWidth; // restart the slide-in when a new card replaces the old one

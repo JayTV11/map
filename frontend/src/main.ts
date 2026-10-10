@@ -5,6 +5,7 @@ import "./wall.css";
 import "./assets.css";
 import "./ingest.css";
 import "./filters.css";
+import "./anomaly.css";
 import { renderWorldMap } from "./map";
 import { ArcEngine } from "./arcs";
 import { connectTrafficSocket } from "./wsClient";

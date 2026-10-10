@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Response
 
+from .. import anomaly
 from ..assets import directory
 from ..config import config
 from ..known_good import known_good
@@ -18,4 +19,5 @@ async def get_status(response: Response):
     )
     snap["assets"] = directory.info()
     snap["known_good"] = known_good.info()
+    snap["anomaly"] = anomaly.info()
     return snap

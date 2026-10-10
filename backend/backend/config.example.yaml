@@ -70,3 +70,16 @@ home:
 # threat_level:
 #   elevated: 60
 #   high: 200
+
+# ---- "How unusual is this?" score ----------------------------------------------
+# Every event gets a 0-100 score for how rare it is compared with what this network has seen
+# before (country, address, signature, target, port, and some combinations), with the reasons in
+# plain words. It is frequency counting, not machine learning. The Elastic feed's history is saved
+# in backend/data/anomaly.db so it survives restarts (mount that folder as a volume in a container);
+# the demo CSV feed's history lives in memory and restarts with each dataset.
+# Scores are shown dimmed until min_events AND min_hours of history exist.
+# anomaly:
+#   enabled: true
+#   min_events: 1000
+#   min_hours: 24
+#   path: data/anomaly.db

@@ -26,6 +26,15 @@ class AssetRef(BaseModel):
     criticality: Criticality = "normal"
 
 
+class Anomaly(BaseModel):
+    """How unusual this event is compared with what this network has seen before (see anomaly.py)."""
+    score: int                                  # 0-100; higher = rarer
+    level: Literal["usual", "uncommon", "unusual"]
+    reasons: list[str] = Field(default_factory=list)
+    # True while the history is still too short to trust: the score is shown, but dimmed.
+    learning: bool = False
+
+
 class TrafficEvent(BaseModel):
     id: str = Field(default_factory=lambda: uuid4().hex)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -59,6 +68,9 @@ class TrafficEvent(BaseModel):
     # inbound = outside -> one of our systems, outbound = one of ours -> outside,
     # internal = between two of ours. None when neither side is a known asset.
     direction: Optional[Direction] = None
+
+    # Set by anomaly.py just before the event is broadcast; None when scoring is off.
+    anomaly: Optional[Anomaly] = None
 
     source: SourceKind
 

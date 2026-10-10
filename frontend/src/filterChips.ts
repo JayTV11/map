@@ -21,6 +21,7 @@ export function builtinChips(): Chip[] {
   if (top) chips.push({ id: "worst", label: top.label, query: `severity:${top.id}` });
   chips.push(
     { id: "key", label: "Key assets", query: "src_criticality:(high or critical) or dst_criticality:(high or critical)" },
+    { id: "unusual", label: "Unusual", query: "anomaly_score >= 70" },
     { id: "inbound", label: "Inbound", query: "direction:inbound" },
     { id: "blocked", label: "Blocked", query: "action:(block* or den* or drop* or reject*)" },
   );

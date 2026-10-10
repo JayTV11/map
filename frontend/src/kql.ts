@@ -77,6 +77,8 @@ const FIELDS: Record<string, FieldDef> = {
   src_asset: { kind: "text", get: (e) => present([e.src_asset?.name]) },
   dst_asset: { kind: "text", get: (e) => present([e.dst_asset?.name]) },
   asset: { kind: "text", get: (e) => present([e.src_asset?.name, e.dst_asset?.name]) },
+  anomaly_score: { kind: "num", get: (e) => present([e.anomaly?.score]) },
+  anomaly: { kind: "keyword", get: (e) => present([e.anomaly?.level]) },
   src_criticality: { kind: "keyword", get: (e) => present([e.src_asset?.criticality]) },
   dst_criticality: { kind: "keyword", get: (e) => present([e.dst_asset?.criticality]) },
 };
@@ -107,6 +109,8 @@ const ALIASES: Record<string, string> = {
   "event.severity": "severity",
   "alert.severity": "severity",
   "network.direction": "direction",
+  "anomaly.score": "anomaly_score",
+  "unusualness": "anomaly_score",
 };
 
 /** Names shown in the help panel. */

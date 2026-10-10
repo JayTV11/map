@@ -45,15 +45,23 @@ export function appendLogEntry(list: HTMLElement, group: EventGroup, onSelect: (
   ips.append(endpointLabel(e.src_ip, e.src_asset), span("arrow", "\u2192"), endpointLabel(e.dst_ip, e.dst_asset));
   const tagText = e.direction && e.direction !== "inbound" ? DIRECTION_TAG[e.direction] : null;
   const dirTag = tagText ? span(`log-dir dir-${e.direction}`, tagText) : null;
+  const an = span("log-an");
   const badge = span("log-count");
   const sevLabel = span("log-sevlabel");
   el.append(dot, ips);
   if (dirTag) el.append(dirTag);
-  el.append(badge, sevLabel);
+  el.append(an, badge, sevLabel);
 
   const update = (g: EventGroup): void => {
     dot.style.background = severityColor(g.severity);
     sevLabel.textContent = severityLabel(g.severity);
+    const a = g.event.anomaly;
+    an.hidden = !a || a.score < 40;
+    if (a && a.score >= 40) {
+      an.textContent = String(a.score);
+      an.className = `log-an an-${a.level}${a.learning ? " an-learning" : ""}`;
+      an.title = `${a.learning ? "Provisional " : ""}unusualness ${a.score}/100\n${a.reasons.join("\n")}`;
+    }
     badge.hidden = g.count <= 1;
     badge.textContent = `\u00d7${g.count.toLocaleString()}`;
     const hint = "Click to pin this event on the map";

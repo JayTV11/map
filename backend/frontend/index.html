@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sightline</title>
+</head>
+<body>
+  <div id="app">
+    <div id="map-wrap">
+      <div id="topbar">
+        <h1>Sightline</h1>
+        <span class="sub">live &amp; simulated traffic by geolocation &middot; scroll to zoom, drag to pan</span>
+      </div>
+      <div id="map-viewport">
+        <div id="map-bg"></div>
+        <canvas id="fx"></canvas>
+      </div>
+      <div id="zoom-controls">
+        <button type="button" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+        <button type="button" id="zoom-reset" title="Reset view" aria-label="Reset view">&#10226;</button>
+        <button type="button" id="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      </div>
+      <div id="focus-banner" hidden>
+        <span class="dot" id="focus-dot"></span>
+        <span id="focus-text"></span>
+        <button type="button" id="focus-clear" title="Clear focus" aria-label="Clear focus">&times;</button>
+      </div>
+      <div id="stats-strip">
+        <div class="stat"><div class="v" id="stat-eps">0.0</div><div class="l">events / sec</div></div>
+        <div class="stat"><div class="v" id="stat-active">0</div><div class="l">active arcs</div></div>
+        <div class="stat"><div class="v" id="stat-total">0</div><div class="l">total this session</div></div>
+      </div>
+      <div id="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#ff3868"></span>Critical</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#ff9f2e"></span>Major</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#ffe066"></span>High</div>
+      </div>
+    </div>
+
+    <div id="sidebar">
+      <div class="panel-section" id="detail-section" hidden>
+        <div class="detail-head">
+          <h2>Alert Detail</h2>
+          <button type="button" id="detail-close" aria-label="Close detail">&times;</button>
+        </div>
+        <div id="detail-body"></div>
+      </div>
+
+      <div class="panel-section">
+        <h2>Data Source</h2>
+        <label class="btn" for="csv-file">Upload CSV&nbsp;&nbsp;⤴</label>
+        <input type="file" id="csv-file" accept=".csv" />
+        <div class="row" style="margin-top:12px;">
+          <label for="live-toggle">Live feed</label>
+          <div class="switch">
+            <input type="checkbox" id="live-toggle" checked />
+            <span class="slider-toggle"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h2>CSV Feed Intensity</h2>
+        <input type="range" id="intensity" min="1" max="10" value="5" />
+        <div class="row" style="margin-top:6px;">
+          <span class="intensity-val">sparse</span>
+          <span class="intensity-val" id="intensity-label">5 / 10</span>
+          <span class="intensity-val">storm</span>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h2>Severity Filter</h2>
+        <div class="sev-row">
+          <input type="checkbox" id="sev-critical" checked />
+          <label for="sev-critical"><span class="sev-dot" style="background:#ff3868"></span>Critical</label>
+          <span class="sev-count" id="count-critical">0</span>
+        </div>
+        <div class="sev-row">
+          <input type="checkbox" id="sev-major" checked />
+          <label for="sev-major"><span class="sev-dot" style="background:#ff9f2e"></span>Major</label>
+          <span class="sev-count" id="count-major">0</span>
+        </div>
+        <div class="sev-row">
+          <input type="checkbox" id="sev-high" checked />
+          <label for="sev-high"><span class="sev-dot" style="background:#ffe066"></span>High</label>
+          <span class="sev-count" id="count-high">0</span>
+        </div>
+      </div>
+
+      <div class="panel-section" id="log-section">
+        <h2>Event Log</h2>
+        <div id="log-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

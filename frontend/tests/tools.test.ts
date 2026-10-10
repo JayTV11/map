@@ -151,6 +151,8 @@ test("chips: parts are ANDed and parenthesised; built-ins compile and match", ()
   const by = Object.fromEntries(builtinChips().map((c) => [c.id, compileQuery(c.query).test]));
   assert.ok(by.worst(ev()) && !by.worst(ev({ severity: "major" })));
   assert.ok(by.key(ev()) && !by.key(ev({ dst_asset: null })));
+  assert.ok(by.unusual(ev({ anomaly: { score: 80, level: "unusual", reasons: [], learning: false } })) && !by.unusual(ev({ anomaly: { score: 50, level: "uncommon", reasons: [], learning: false } })) && !by.unusual(ev()));
+  assert.ok(compileQuery("anomaly:unusual").test(ev({ anomaly: { score: 90, level: "unusual", reasons: [], learning: false } })));
   assert.ok(by.inbound(ev()) && !by.inbound(ev({ direction: "internal" })));
   assert.ok(by.blocked(ev({ action: "blocked" })) && by.blocked(ev({ action: "denied" })) && by.blocked(ev({ action: "DROP" })) && !by.blocked(ev({ action: "allowed" })));
 });

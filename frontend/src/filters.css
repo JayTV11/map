@@ -105,3 +105,9 @@ body.pl-resizing,body.pl-resizing *{cursor:ns-resize !important;user-select:none
 .pl-reset:hover{color:var(--text-bright);}
 .pl-reset[hidden]{display:none;}
 body.kiosk .pl-grip,body.kiosk .pl-resize,body.kiosk .pl-footer{display:none;}
+
+/* Panels keep their natural height (the column scrolls) instead of being squeezed shut when many are open.
+   The event log is the one that flexes. */
+.panel-section{flex-shrink:0;}
+#log-section{flex-shrink:1;}
+body:not(.kiosk) #detail-section{max-height:none;}

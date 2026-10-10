@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from ..models import TrafficEvent
+from ..anomaly import reset_simulated
 from ..normalize import record_to_event
 from ..records import read_records
 from ..settings import home, scale
@@ -64,6 +65,7 @@ class CSVReplaySource(EventSource):
         self._running = False
 
     def load_events(self, events: list[TrafficEvent]) -> int:
+        reset_simulated()  # a new dataset is a new "network": the demo history starts over
         self._events = events
         # sqrt-dampened rather than raw count: a row with count=500 should
         # still fire more often than one with count=3, but not ~166x more
@@ -77,6 +79,7 @@ class CSVReplaySource(EventSource):
 
     def unload(self) -> None:
         """Back to idle: no rows, so run() stops firing events."""
+        reset_simulated()
         self._events = []
         self._weights = []
 

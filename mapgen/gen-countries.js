@@ -1,7 +1,8 @@
 /** One-time generator for the offline country lookup. You do not need to run
  *  this to build or run the app -- its output is already committed:
  *
- *    frontend/src/country-geo.ts   country outlines in lon/lat (Natural Earth 110m)
+ *    frontend/src/country-geo.ts       country outlines in lon/lat (Natural Earth 110m)
+ *    backend/app/data/countries.json   the same outlines for the backend (anomaly.py)
  *
  *  Sightline names the SOURCE COUNTRY of each event from its coordinates, with
  *  no external geolocation service: frontend/src/countries.ts does a
@@ -73,4 +74,8 @@ const body =
   "// degree (lon * 10, lat * 10). See frontend/src/countries.ts.\n" +
   "export const COUNTRY_GEO: [string, number[][]][] = " + JSON.stringify(out) + ";\n";
 fs.writeFileSync(file, body);
+// The backend names countries too (for the "how unusual is this?" score), from the same outlines.
+const jsonFile = path.join(__dirname, "..", "backend", "app", "data", "countries.json");
+fs.mkdirSync(path.dirname(jsonFile), { recursive: true });
+fs.writeFileSync(jsonFile, JSON.stringify(out));
 console.log(`${out.length} countries, ${points} points, ${(body.length / 1024).toFixed(0)} KB -> ${file}`);

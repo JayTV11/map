@@ -39,6 +39,14 @@
     </div>
 
     <div id="sidebar">
+      <div class="panel-section" id="detail-section" hidden>
+        <div class="detail-head">
+          <h2>Alert Detail</h2>
+          <button type="button" id="detail-close" aria-label="Close detail">&times;</button>
+        </div>
+        <div id="detail-body"></div>
+      </div>
+
       <div class="panel-section">
         <h2>Data Source</h2>
         <label class="btn" for="csv-file">Upload CSV&nbsp;&nbsp;⤴</label>
@@ -79,14 +87,6 @@
           <label for="sev-high"><span class="sev-dot" style="background:#ffe066"></span>High</label>
           <span class="sev-count" id="count-high">0</span>
         </div>
-      </div>
-
-      <div class="panel-section" id="detail-section" hidden>
-        <div class="detail-head">
-          <h2>Alert Detail</h2>
-          <button type="button" id="detail-close" aria-label="Close detail">&times;</button>
-        </div>
-        <div id="detail-body"></div>
       </div>
 
       <div class="panel-section" id="log-section">
