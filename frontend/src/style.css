@@ -11,6 +11,7 @@
   --high:#ffe066;
   --map-fill:#101b28;
   --map-stroke:#213347;
+  color-scheme:dark; /* the browser's own scrollbars, dropdowns and checkboxes follow the dark theme */
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;height:100%;overflow:hidden;}
@@ -125,8 +126,6 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 .log-ips{color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
 .log-ips .arrow{color:var(--text-dim);margin:0 4px;}
 .log-sevlabel{font-size:9.5px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-dim);flex-shrink:0;}
-#log-list::-webkit-scrollbar{width:6px;}
-#log-list::-webkit-scrollbar-thumb{background:#1c2938;border-radius:3px;}
 
 .intensity-val{font-size:11px;color:var(--text-dim);}
 
@@ -150,3 +149,12 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 .detail-grid dd{margin:0;color:var(--text);font-variant-numeric:tabular-nums;word-break:break-word;}
 .detail-actions{display:flex;flex-direction:column;gap:6px;}
 .detail-actions a.btn{text-decoration:none;}
+
+/* Scrollbars: slim, dark, and out of the way (the browser's default grey bars with arrows clash with the design).
+   Standard properties first (Chrome 121+, Firefox); the -webkit rules cover older Chrome and Edge. */
+*{scrollbar-width:thin;scrollbar-color:#24364a transparent;}
+*::-webkit-scrollbar{width:8px;height:8px;}
+*::-webkit-scrollbar-track{background:transparent;}
+*::-webkit-scrollbar-thumb{background:#24364a;border-radius:4px;border:2px solid transparent;background-clip:padding-box;}
+*::-webkit-scrollbar-thumb:hover{background:#36516e;background-clip:padding-box;}
+*::-webkit-scrollbar-corner{background:transparent;}
