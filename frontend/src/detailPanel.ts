@@ -1,4 +1,6 @@
 import { GroupSummary } from "./aggregator";
+import { CaseStore } from "./cases";
+import { ContainmentStore, isStatus, STATUS_LABEL, STATUSES } from "./containment";
 import { isPrivateIp, linksFor, LinkSpec } from "./links";
 import { KnownGoodList } from "./knownGood";
 import { openMuteConfirm } from "./muteConfirm";
@@ -54,6 +56,12 @@ export class DetailPanel {
   notes: SignatureNotes | null = null;
   /** Ticket and tool links from config.yaml. */
   links: readonly LinkSpec[] = [];
+  /** Case timeline: with it, "Add to case" appears. */
+  cases: CaseStore | null = null;
+  /** Shared response status per source. */
+  containment: ContainmentStore | null = null;
+  /** Opens the dossier window for a source address. */
+  onDossier: ((ip: string) => void) | null = null;
   private store: ReviewStore | null = null;
 
   get reviews(): ReviewStore | null { return this.store; }
@@ -230,6 +238,46 @@ export class DetailPanel {
     return box;
   }
 
+  /** The source's place in the response: a status chip and a way to set it. Shared with every analyst. */
+  private statusBlock(e: TrafficEvent): HTMLElement | null {
+    const store = this.containment;
+    if (!store || !store.enabled || !e.src_ip) return null;
+    const ip = e.src_ip;
+    const cur = store.get(ip);
+    const box = document.createElement("div");
+    box.className = "detail-status";
+    const label = document.createElement("span");
+    label.className = "ds-label";
+    label.textContent = "Response";
+    const sel = document.createElement("select");
+    sel.className = "dos-select";
+    sel.setAttribute("aria-label", "Response status for this source");
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "No status";
+    sel.append(none);
+    for (const st of STATUSES) { const o = document.createElement("option"); o.value = st; o.textContent = STATUS_LABEL[st]; sel.append(o); }
+    sel.value = cur?.status ?? "";
+    const msg = document.createElement("div");
+    msg.className = "mc-msg";
+    msg.setAttribute("role", "alert");
+    sel.addEventListener("change", async () => {
+      sel.disabled = true;
+      const err = sel.value === "" ? await store.clear(ip) : isStatus(sel.value) ? await store.set(ip, sel.value, cur?.note ?? "") : null;
+      sel.disabled = false;
+      if (err) { msg.textContent = err; sel.value = cur?.status ?? ""; }
+    });
+    box.append(label, sel);
+    if (cur) {
+      const who = document.createElement("div");
+      who.className = "ds-who";
+      who.textContent = `${cur.by ? `by ${cur.by} ` : ""}${cur.at ? `at ${new Date(cur.at).toLocaleString()}` : ""}${cur.note ? ` \u2014 ${cur.note}` : ""}`;
+      box.append(who);
+    }
+    box.append(msg);
+    return box;
+  }
+
   private historyBlock(e: TrafficEvent): HTMLElement | null {
     if (!this.history || !e.src_ip) return null;
     const st = this.history.get(e.src_ip);
@@ -335,7 +383,7 @@ export class DetailPanel {
   /** True while a note is being typed in `root`: redrawing then would wipe the text and the cursor. */
   private typingIn(root: HTMLElement | null): boolean {
     const a = document.activeElement;
-    return !!root && a instanceof HTMLTextAreaElement && root.contains(a);
+    return !!root && (a instanceof HTMLTextAreaElement || a instanceof HTMLSelectElement || a instanceof HTMLInputElement) && root.contains(a);
   }
 
   /** Redraw because something the details show (history, notes) arrived. */
@@ -367,6 +415,8 @@ export class DetailPanel {
     if (e.anomaly) body.append(this.anomalyBlock(e.anomaly));
     const hist = this.historyBlock(e);
     if (hist) body.append(hist);
+    const status = this.statusBlock(e);
+    if (status) body.append(status);
     if (key && this.store) body.append(this.reviewBlock(key, large));
 
     const grouped = summary !== undefined && summary.count > 1;
@@ -446,6 +496,36 @@ export class DetailPanel {
     if (this.links.length === 0 && e.src_ip && !isPrivateIp(e.src_ip)) {
       link("VirusTotal (source IP) ↗", `https://www.virustotal.com/gui/ip-address/${encodeURIComponent(e.src_ip)}`);
       link("AbuseIPDB (source IP) ↗", `https://www.abuseipdb.com/check/${encodeURIComponent(e.src_ip)}`);
+    }
+    if (this.cases && key && e.src_ip && e.dst_ip) {
+      const cases = this.cases;
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "btn";
+      const label = (): string => (cases.has(key) ? "In case \u2713 (update)" : cases.active ? `Add to ${cases.active.name}` : "Add to a new case");
+      add.textContent = label();
+      add.title = "Pins this alert into the case timeline you can export";
+      add.addEventListener("click", () => {
+        const ok = cases.add({
+          kind: "event", id: key, src: e.src_ip!, dst: e.dst_ip!, srcName: e.src_asset?.name ?? null, dstName: e.dst_asset?.name ?? null,
+          signature: e.signature ?? "(no signature)", severity: e.severity,
+          first: summary?.firstSeen ?? Date.parse(e.alert_time ?? e.timestamp), last: summary?.lastSeen ?? Date.parse(e.alert_time ?? e.timestamp),
+          count: summary?.count ?? 1, score: e.anomaly ? e.anomaly.score : null, addedAt: Date.now(),
+        });
+        add.textContent = ok ? "Added \u2713" : "Case is full (200 items)";
+        window.setTimeout(() => { add.textContent = label(); }, 1500);
+      });
+      actions.append(add);
+    }
+    if (this.onDossier && e.src_ip) {
+      const ip = e.src_ip;
+      const dos = document.createElement("button");
+      dos.type = "button";
+      dos.className = "btn";
+      dos.textContent = "Source dossier\u2026";
+      dos.title = "Everything this server has recorded about this source, and where it stands";
+      dos.addEventListener("click", () => { if (this.overlay) this.collapse(); this.onDossier?.(ip); });
+      actions.append(dos);
     }
     const copy = document.createElement("button");
     copy.type = "button";

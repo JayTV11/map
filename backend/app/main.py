@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from . import insights
 from .broadcast import broadcaster
 from .config import config
-from .routes import app_config, controls, ingest, insights as insights_routes, known_good as known_good_routes, status as status_routes, upload, ws
+from .routes import app_config, containment as containment_routes, controls, ingest, insights as insights_routes, known_good as known_good_routes, status as status_routes, upload, ws
 from .sources.csv_source import csv_source
 from .sources.elastic_source import ElasticPollSource
 
@@ -58,6 +58,7 @@ app.include_router(app_config.router)
 app.include_router(ingest.router)
 app.include_router(known_good_routes.router)
 app.include_router(insights_routes.router)
+app.include_router(containment_routes.router)
 
 if FRONTEND_DIST.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend")

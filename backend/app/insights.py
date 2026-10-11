@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -32,7 +32,12 @@ MAX_SOURCES = 20_000
 MAX_HOURS = 72
 HOUR_TOP_CAP = 1_500          # distinct signatures / sources / targets / countries kept per hour
 SOURCE_TOP_CAP = 40           # distinct signatures / targets kept per source
+FLOW_RING = 60_000            # recent events kept (in memory only) for spotting campaigns
+CAMPAIGN_MAX_MINUTES = 180
+SOURCE_RECENT = 20            # most recent events kept per source, for the dossier
 MAX_NOTABLE = 400
+CAMPAIGN_MIN_DISTINCT = 3
+CAMPAIGN_MIN_EVENTS = 5
 UNUSUAL_AT = 70
 FLUSH_SECONDS = 60
 SAVE_VERSION = 1
@@ -94,6 +99,9 @@ class Insights:
         self._sources: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
         self._hours: dict[int, _Hour] = {}
         self._notable: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+        # Recent events as (time, source, target, target address, signature, severity). In memory only: rebuilt as
+        # events arrive, so campaigns are only ever looked for in what this server has actually seen since it started.
+        self._flows: "deque[tuple[float, str, str, Optional[str], str, str]]" = deque(maxlen=FLOW_RING)
         self._dirty = True
 
     @property
@@ -118,6 +126,9 @@ class Insights:
             h.muted += 1
             return
         h.n += 1
+        if e.src_ip:
+            self._flows.append((ts, e.src_ip, e.dst_asset.name if e.dst_asset else (e.dst_ip or "?"), e.dst_ip,
+                                e.signature or "(no signature)", e.severity or UNKNOWN_ID))
         sev = e.severity or UNKNOWN_ID
         h.sev[sev] = h.sev.get(sev, 0) + 1
         sig = e.signature or "(no signature)"
@@ -147,7 +158,7 @@ class Insights:
             return
         rec = self._sources.get(ip)
         if rec is None:
-            rec = self._sources[ip] = {"first": ts, "last": ts, "n": 0, "sigs": {}, "tgts": {}, "ports": {}, "sev": {}}
+            rec = self._sources[ip] = {"first": ts, "last": ts, "n": 0, "sigs": {}, "tgts": {}, "ports": {}, "sev": {}, "hrs": {}, "recent": []}
             while len(self._sources) > MAX_SOURCES:
                 self._sources.popitem(last=False)  # the least recently seen goes first
         else:
@@ -161,6 +172,18 @@ class Insights:
             _bump(rec["ports"], str(e.dst_port), SOURCE_TOP_CAP)
         sev = e.severity or UNKNOWN_ID
         rec["sev"][sev] = rec["sev"].get(sev, 0) + 1
+        # Older saved files have no hourly counts or recent list; start them on first use.
+        hrs = rec.setdefault("hrs", {})
+        hk = str(int(ts // 3600))
+        hrs[hk] = hrs.get(hk, 0) + 1
+        if len(hrs) > MAX_HOURS:
+            for old in sorted(hrs, key=int)[:-MAX_HOURS]:
+                del hrs[old]
+        recent = rec.setdefault("recent", [])
+        recent.append({"t": ts, "sig": e.signature or "(no signature)", "tgt": e.dst_asset.name if e.dst_asset else (e.dst_ip or "?"),
+                       "sev": sev, "port": e.dst_port})
+        if len(recent) > SOURCE_RECENT:
+            del recent[: len(recent) - SOURCE_RECENT]
 
     def _note(self, e: TrafficEvent, ts: float, sig: str, target: str, country: Optional[str], score: int) -> None:
         key = f"{e.src_ip}|{e.dst_ip}|{sig}"
@@ -199,6 +222,67 @@ class Insights:
             "top_signatures": _top(rec["sigs"], 5), "top_targets": _top(rec["tgts"], 5),
             "top_ports": _top(rec["ports"], 5), "severities": dict(rec["sev"]),
         }
+
+    def dossier(self, ip: str, hours: int = 24, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+        """Everything known about one source: the history, hour-by-hour activity, fuller top lists and the latest events."""
+        base = self.source_history(ip)
+        if base is None:
+            return None
+        rec = self._sources[ip]
+        hours = max(1, min(int(hours), MAX_HOURS))
+        now = now if now is not None else time.time()
+        end = int(now // 3600)
+        hrs = rec.get("hrs", {})
+        base["top_signatures"] = _top(rec["sigs"], 15)
+        base["top_targets"] = _top(rec["tgts"], 15)
+        base["top_ports"] = _top(rec["ports"], 10)
+        base["activity"] = [{"t": _iso(k * 3600), "n": hrs.get(str(k), 0)} for k in range(end - hours + 1, end + 1)]
+        base["activity_hours"] = hours
+        base["recent"] = [{"t": _iso(r["t"]), "signature": r["sig"], "target": r["tgt"], "severity": r["sev"], "port": r["port"]}
+                          for r in reversed(rec.get("recent", []))]
+        return base
+
+    def campaigns(self, minutes: int, severity_order: list[str], now: Optional[float] = None) -> dict[str, Any]:
+        """Activity that looks coordinated, in the last `minutes`:
+
+          * fan-out: one source reaching 3 or more different targets (a sweep, a scan, a spreading attacker)
+          * fan-in:  3 or more different sources sending the same alert at one target (a distributed attack)
+
+        Only a heuristic for "these belong together": it says what was seen, not who is behind it."""
+        minutes = max(5, min(int(minutes), CAMPAIGN_MAX_MINUTES))
+        now = now if now is not None else time.time()
+        start = now - minutes * 60
+        rank = {sid: i for i, sid in enumerate(severity_order)}
+        by_src: dict[str, dict[str, Any]] = {}
+        by_tgt: dict[tuple[str, str], dict[str, Any]] = {}
+        seen = 0
+        for ts, src, tgt, dst_ip, sig, sev in self._flows:
+            if ts < start:
+                continue
+            seen += 1
+            a = by_src.setdefault(src, {"events": 0, "tgts": {}, "sigs": {}, "sev": sev, "first": ts, "last": ts})
+            b = by_tgt.setdefault((tgt, sig), {"events": 0, "srcs": {}, "sev": sev, "first": ts, "last": ts, "dst_ip": dst_ip})
+            for r in (a, b):
+                r["events"] += 1
+                r["last"] = max(r["last"], ts)
+                r["first"] = min(r["first"], ts)
+                if rank.get(sev, 99) < rank.get(r["sev"], 99):
+                    r["sev"] = sev
+            a["tgts"][tgt] = a["tgts"].get(tgt, 0) + 1
+            a["sigs"][sig] = a["sigs"].get(sig, 0) + 1
+            b["srcs"][src] = b["srcs"].get(src, 0) + 1
+        out: list[dict[str, Any]] = []
+        for src, r in by_src.items():
+            if len(r["tgts"]) >= CAMPAIGN_MIN_DISTINCT and r["events"] >= CAMPAIGN_MIN_EVENTS:
+                out.append({"kind": "fan-out", "src_ip": src, "events": r["events"], "distinct": len(r["tgts"]), "severity": r["sev"],
+                            "first": _iso(r["first"]), "last": _iso(r["last"]), "targets": _top(r["tgts"], 5), "signatures": _top(r["sigs"], 3)})
+        for (tgt, sig), r in by_tgt.items():
+            if len(r["srcs"]) >= CAMPAIGN_MIN_DISTINCT and r["events"] >= CAMPAIGN_MIN_EVENTS:
+                out.append({"kind": "fan-in", "target": tgt, "dst_ip": r["dst_ip"], "signature": sig, "events": r["events"], "distinct": len(r["srcs"]),
+                            "severity": r["sev"], "first": _iso(r["first"]), "last": _iso(r["last"]), "sources": _top(r["srcs"], 5)})
+        out.sort(key=lambda c: (rank.get(c["severity"], 99), -c["distinct"], -c["events"]))
+        return {"minutes": minutes, "events_considered": seen, "campaigns": out[:20], "total": len(out),
+                "since": _iso(self.started) if self.started else None}
 
     def summary(self, hours: int, severity_order: list[str], now: Optional[float] = None) -> dict[str, Any]:
         hours = max(1, min(int(hours), MAX_HOURS))

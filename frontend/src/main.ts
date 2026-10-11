@@ -26,6 +26,14 @@ import { SeverityUi } from "./severityUi";
 import { openIngestDialog } from "./ingestDialog";
 import { KnownGoodList } from "./knownGood";
 import { viewMode, WindowSync } from "./windowSync";
+import { CaseStore, ExportContext } from "./cases";
+import { CampaignPanel } from "./campaignPanel";
+import { queryForItemId } from "./campaigns";
+import { CasePanel } from "./casePanel";
+import { ContainmentStore, STATUS_LABEL, STATUS_SHORT } from "./containment";
+import { openDossier } from "./dossier";
+import { PivotField } from "./pivot";
+import { severityLabel } from "./types";
 import { openSummary } from "./summaryModal";
 import { SignatureNotes } from "./signatureNotes";
 import { SourceHistoryStore } from "./sourceHistory";
@@ -155,6 +163,31 @@ async function start(): Promise<void> {
   detail.notes = sigNotes;
   void sigNotes.refresh();
   sigNotes.startPolling();
+
+  // Incident response: shared response status per source, case timelines, campaigns, and the source dossier.
+  const containment = new ContainmentStore();
+  const caseStore = new CaseStore(storage);
+  await containment.refresh();
+  containment.startPolling();
+  detail.containment = containment;
+  detail.cases = caseStore;
+  const statusMark = (ip: string | null): { short: string; label: string } | null => {
+    const c = containment.get(ip);
+    return c ? { short: STATUS_SHORT[c.status], label: STATUS_LABEL[c.status] } : null;
+  };
+  const exportContext = (): ExportContext => ({
+    label: severityLabel,
+    note: (k) => reviews.get(k)?.note ?? "",
+    status: (ip) => { const c = containment.get(ip); return c ? { label: STATUS_LABEL[c.status], by: c.by, at: c.at, note: c.note } : null; },
+  });
+  const dossierDeps = {
+    containment, cases: caseStore,
+    onPivot: (f: PivotField, v: string, a: boolean) => viewFilters.pivot(f, v, a),
+    onChange: () => { campaignPanel.redraw(); detail.refresh(); },
+  };
+  detail.onDossier = (ip) => openDossier(ip, dossierDeps);
+  const campaignPanel = new CampaignPanel({ containment, cases: caseStore, search: (q) => viewFilters.search(q), dossier: (ip) => openDossier(ip, dossierDeps) });
+  const casePanel = new CasePanel(caseStore, exportContext, (id) => { const q = queryForItemId(id); if (q) viewFilters.search(q); });
   const LOG_PREFS = "sightline:log-prefs";
   const currentView = (): ViewState => ({
     ...viewFilters.getView(),
@@ -225,6 +258,15 @@ async function start(): Promise<void> {
     mode,
     openSummary: () => openSummary({ reviews, onPivot: (f, v, a) => viewFilters.pivot(f, v, a) }),
   }).mount(document.getElementById("log-section"));
+  campaignPanel.mount(document.getElementById("views-section"));
+  casePanel.mount(document.getElementById("views-section"));
+  campaignPanel.start();
+  // A status set by anyone: relabel the log rows, the details and the campaigns.
+  containment.onChange = () => {
+    for (const [id, row] of logRows) { const g = logGroups.get(id); if (g) row.update(g); }
+    detail.refresh();
+    campaignPanel.redraw();
+  };
   // "J" jumps into the log for keyboard stepping (not while typing, and not on the wall).
   window.addEventListener("keydown", (ev) => {
     if ((ev.key !== "j" && ev.key !== "J" && ev.key !== "p" && ev.key !== "P") || ev.ctrlKey || ev.metaKey || ev.altKey) return;
@@ -286,7 +328,7 @@ async function start(): Promise<void> {
     if (arc && !tools.replaying) engine.spawn(arc.event, arc.weight);
 
     if (isNew) {
-      const row = appendLogEntry(group, (el) => focus.toggle(group, el), (el) => focus.open(group, el), (g) => ({ reviewed: reviews.isReviewed(g.key), note: reviews.hasNote(g.key) }));
+      const row = appendLogEntry(group, (el) => focus.toggle(group, el), (el) => focus.open(group, el), (g) => ({ reviewed: reviews.isReviewed(g.key), note: reviews.hasNote(g.key), status: statusMark(g.event.src_ip) }));
       logRows.set(group.id, row);
       logGroups.set(group.id, group);
       logView.add(group, row);

@@ -23,3 +23,23 @@ assert "links" in c.get("/api/config").json()
 st = c.get("/api/status").json()
 assert "insights" in st and "signature_notes" in st
 print("insight routes: all tests passed")
+
+# ---- dossier and containment routes ----
+from app import containment as _cm
+d = c.get("/api/source-dossier", params={"ip": "8.8.8.8"}).json()
+assert d["source"] == "simulated" and d["dossier"]["events"] == 1 and len(d["dossier"]["activity"]) == 24, d
+assert c.get("/api/source-dossier", params={"ip": "<x>"}).status_code == 400
+_cm.containment._path = None; _cm.containment._audit_path = None; _cm.containment._rows = {}  # keep the test off the real data
+assert c.get("/api/containment").json()["entries"] is not None
+assert c.put("/api/containment", json={"ip": "8.8.8.8", "status": "blocked"}).status_code == 403, "needs the page's header"
+H = {"x-sightline-edit": "1"}
+ok = c.put("/api/containment", json={"ip": "8.8.8.8", "status": "blocked", "note": "fw"}, headers=H)
+assert ok.status_code == 200 and ok.json()["status"] == "blocked", ok.text
+assert c.put("/api/containment", json={"ip": "8.8.8.8", "status": "bogus"}, headers=H).status_code == 400
+assert [e["ip"] for e in c.get("/api/containment").json()["entries"]] == ["8.8.8.8"]
+assert c.delete("/api/containment", params={"ip": "8.8.8.8"}, headers=H).status_code == 200
+assert c.get("/api/containment").json()["entries"] == []
+print("containment routes: all tests passed")
+assert "campaigns" in c.get("/api/campaigns", params={"minutes": 60}).json()
+assert c.get("/api/campaigns", params={"minutes": 1}).status_code == 422
+print("campaign route: ok")

@@ -167,6 +167,13 @@ known_good:
 - **Views panel:** Triage, Threat hunter and Manager overview starting points; save your own views (optionally with your panel layout); copy a link that reopens the same search and log order; export/import saved views as a file.
 - Wall mode always shows the plain newest-first log, whatever an analyst set on the same browser.
 
+### Incident response
+
+- **Case timeline.** "Add to case" in an event's details (also on a campaign or a source dossier) pins it into the active case. The **Case** panel lists the items in time order and exports them as a Markdown timeline (**Copy timeline**, **Download .md**) with a table of alerts, context lines, your notes, and the response status of each source. All times are **UTC**. Up to 10 cases of 200 items, kept in this browser.
+- **Source dossier.** "Source dossier…" in the details (or on a campaign) opens everything this server has recorded for an address: first/last seen, targets, alert types, ports, an hour-by-hour chart (24h or 72h), the latest events, and where it stands. The server only knows what it has counted since it started, and the dossier says so.
+- **Campaigns.** The **Campaigns** panel lists activity that looks coordinated in the last 30 minutes, 1 hour or 3 hours: one source reaching 3+ different targets (a sweep or spread), or 3+ sources sending the same alert at one target (a distributed attack). Worst severity first; click one to filter the screen to it. It is a grouping heuristic, not attribution. A sweeping source with the top severity and no recorded response shows a "No status" flag.
+- **Response status.** Mark a source **Investigating / Escalated / Blocked / False positive** (in the details or the dossier, with an optional note). It is shared by every analyst, shows as a small tag on log rows, and every change is written to `backend/data/containment_audit.log` with who made it. It only *records* what people did; it blocks nothing. Statuses are stored in `backend/data/containment.json`. Config (optional): `containment: enabled: false` turns it off; `containment: user_header:` names the SSO header (it defaults to `known_good.user_header`, and if one is set, requests without it are refused). **Keep `backend/data/` on a persistent volume.**
+
 ### Analyst extras
 
 - **Click to pivot.** In an event's details, click an address, alert name, category, protocol, system and so on to filter the whole screen to it. **Shift-click** adds it to the current search instead of replacing it.

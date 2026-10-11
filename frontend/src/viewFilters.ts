@@ -173,6 +173,12 @@ export class ViewFilters {
     );
   }
 
+  /** Sets the search box to `text` and applies it (used by campaigns and case items). */
+  search(text: string): void {
+    this.setText(text);
+    this.input.scrollIntoView({ block: "nearest" });
+  }
+
   /** Click-to-pivot from the details: filter to this value (replaces the search), or AND it onto the search (Shift-click). */
   pivot(field: PivotField, value: string, and: boolean): void {
     this.setText(pivotQuery(this.input.value, pivotClause(field, value), and));

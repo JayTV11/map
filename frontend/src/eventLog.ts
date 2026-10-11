@@ -37,7 +37,7 @@ export function appendLogEntry(
   group: EventGroup,
   onSelect: (el: HTMLElement) => void,
   onExpand?: (el: HTMLElement) => void,
-  marks?: (group: EventGroup) => { reviewed: boolean; note: boolean },
+  marks?: (group: EventGroup) => { reviewed: boolean; note: boolean; status?: { short: string; label: string } | null },
 ): LogRow {
   const el = document.createElement("div");
   el.className = "log-entry";
@@ -57,9 +57,11 @@ export function appendLogEntry(
   const noteMark = span("log-note", "\u270e");
   noteMark.title = "Has a note";
   noteMark.hidden = true;
+  const csTag = span("log-cs");
+  csTag.hidden = true;
   el.append(dot, ips);
   if (dirTag) el.append(dirTag);
-  el.append(noteMark, an, badge, sevLabel);
+  el.append(csTag, noteMark, an, badge, sevLabel);
   if (onExpand) {
     const expand = document.createElement("button");
     expand.type = "button";
@@ -86,13 +88,15 @@ export function appendLogEntry(
     const m = marks?.(g);
     el.classList.toggle("reviewed", m?.reviewed === true);
     noteMark.hidden = m?.note !== true;
+    csTag.hidden = !m?.status;
+    if (m?.status) { csTag.textContent = m.status.short; csTag.title = `Response: ${m.status.label}`; csTag.dataset.cs = m.status.short; }
     badge.hidden = g.count <= 1;
     badge.textContent = `\u00d7${g.count.toLocaleString()}`;
     const hint = "Click to pin this event on the map";
     const head = g.event.signature ? `${g.event.signature}\n` : "";
     const addrs = g.event.src_asset || g.event.dst_asset ? `${g.event.src_ip ?? "?"} \u2192 ${g.event.dst_ip ?? "?"}\n` : "";
     const times = g.count > 1 ? `${g.count} events, last ${new Date(g.lastSeen).toLocaleTimeString()}\n` : "";
-    el.title = `${head}${addrs}${times}${hint}${m?.reviewed ? "\nReviewed" : ""}`;
+    el.title = `${head}${addrs}${times}${hint}${m?.reviewed ? "\nReviewed" : ""}${m?.status ? `\nResponse: ${m.status.label}` : ""}`;
   };
   update(group);
 

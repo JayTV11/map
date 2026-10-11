@@ -108,3 +108,10 @@ home:
 #     public_only: true
 #   - label: "New ticket"
 #     url: "https://tickets.example.com/new?title={signature}&src={src_ip}&dst={dst_ip}"
+
+# Response status per source (Investigating / Escalated / Blocked / False positive), shared by every analyst.
+# It only records what people did. On by default; every change is audited in data/containment_audit.log.
+# user_header defaults to known_good.user_header; when set, edits without it are refused.
+# containment:
+#   enabled: true
+#   user_header: X-Forwarded-User
