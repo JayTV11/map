@@ -1,3 +1,4 @@
+import { url } from "./base";
 import { LinkSpec } from "./links";
 import { SeverityLevel, setSeverityLevels } from "./types";
 
@@ -29,7 +30,7 @@ export async function loadConfig(fetchImpl: typeof fetch = (...a) => fetch(...a)
   const ctl = new AbortController();
   const timer = window.setTimeout(() => ctl.abort(), 3000);
   try {
-    const resp = await fetchImpl("/api/config", { cache: "no-store", signal: ctl.signal });
+    const resp = await fetchImpl(url("/api/config"), { cache: "no-store", signal: ctl.signal });
     if (!resp.ok) throw new Error(String(resp.status));
     const cfg = (await resp.json()) as AppConfig;
     if (!Array.isArray(cfg.severity?.levels) || cfg.severity.levels.length === 0) throw new Error("no levels");

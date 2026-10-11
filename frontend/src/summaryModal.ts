@@ -1,3 +1,4 @@
+import { url } from "./base";
 import { ReviewStore } from "./reviews";
 import { PivotField } from "./pivot";
 import { Counted, dataNote, Notable, notesInWindow, summaryText, SummaryData } from "./summary";
@@ -188,7 +189,7 @@ export function openSummary(deps: SummaryDeps): void {
     hourBtns.forEach((b, i) => b.setAttribute("aria-pressed", String(HOURS[i] === hours)));
     body.replaceChildren(el("div", "sm-empty", "Loading…"));
     try {
-      const resp = await fetch(`/api/summary?hours=${hours}`, { cache: "no-store" });
+      const resp = await fetch(url(`/api/summary?hours=${hours}`), { cache: "no-store" });
       if (!resp.ok) throw new Error(String(resp.status));
       const d = (await resp.json()) as SummaryData;
       if (mine !== seq) return; // a newer request has taken over

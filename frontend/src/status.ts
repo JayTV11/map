@@ -1,3 +1,4 @@
+import { url } from "./base";
 import { TrafficEvent } from "./types";
 
 /** Feed health, as the backend reports it (GET /api/status). */
@@ -242,7 +243,7 @@ export class StatusMonitor {
     const ctl = new AbortController();
     const timeout = window.setTimeout(() => ctl.abort(), 4000);
     try {
-      const resp = await this.fetchImpl("/api/status", { cache: "no-store", signal: ctl.signal });
+      const resp = await this.fetchImpl(url("/api/status"), { cache: "no-store", signal: ctl.signal });
       if (!resp.ok) throw new Error(String(resp.status));
       this.status = (await resp.json()) as StatusPayload;
       this.statusFetchedAt = Date.now();
@@ -282,7 +283,7 @@ export class StatusMonitor {
     btn.textContent = "Clear simulated data";
     btn.hidden = true;
     btn.addEventListener("click", async () => {
-      try { await this.fetchImpl("/api/upload", { method: "DELETE" }); } catch { /* status poll will show the truth */ }
+      try { await this.fetchImpl(url("/api/upload"), { method: "DELETE" }); } catch { /* status poll will show the truth */ }
       this.csvAt = null;
       await this.refresh();
     });

@@ -1,3 +1,4 @@
+import { url } from "./base";
 /** Plain-English notes on alert types, written once by an admin (backend/signatures.yaml) and shown to every analyst.
  *  Fetched from /api/signature-notes; matched here so a new note shows on screen within a minute, no reload. */
 
@@ -61,7 +62,7 @@ export class SignatureNotes {
     const ctl = new AbortController();
     const t = window.setTimeout(() => ctl.abort(), 3000);
     try {
-      const resp = await fetchImpl("/api/signature-notes", { cache: "no-store", signal: ctl.signal });
+      const resp = await fetchImpl(url("/api/signature-notes"), { cache: "no-store", signal: ctl.signal });
       if (!resp.ok) return; // an older backend, or a blip: keep what we have
       const body = (await resp.json()) as { notes?: SignatureNote[] };
       this.setNotes(Array.isArray(body.notes) ? body.notes : []);

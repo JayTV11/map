@@ -1,3 +1,4 @@
+import { url } from "./base";
 import { CaseStore } from "./cases";
 import { Campaign, campaignId, campaignQuery, campaignText, campaignTitle, CampaignData } from "./campaigns";
 import { ContainmentStore, STATUS_LABEL } from "./containment";
@@ -60,7 +61,7 @@ export class CampaignPanel {
 
   async refresh(): Promise<void> {
     try {
-      const resp = await fetch(`/api/campaigns?minutes=${this.minutes}`, { cache: "no-store" });
+      const resp = await fetch(url(`/api/campaigns?minutes=${this.minutes}`), { cache: "no-store" });
       if (resp.status === 404) { this.section.hidden = true; return; } // an older backend
       if (!resp.ok) throw new Error(String(resp.status));
       this.last = (await resp.json()) as CampaignData;

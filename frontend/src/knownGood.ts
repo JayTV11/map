@@ -1,3 +1,4 @@
+import { url } from "./base";
 import { ipInNet, IpNet, parseNet } from "./ipmatch";
 
 /** The known-good source list (backend/known_good.yaml), as the browser
@@ -112,7 +113,7 @@ export class KnownGoodList implements KnownGoodMatcher {
     const ctl = new AbortController();
     const timer = window.setTimeout(() => ctl.abort(), 3000);
     try {
-      const resp = await fetchImpl("/api/known-good", { cache: "no-store", signal: ctl.signal });
+      const resp = await fetchImpl(url("/api/known-good"), { cache: "no-store", signal: ctl.signal });
       if (resp.status === 404) { // an older backend without the feature
         this.loadFailed = false;
         this.setEntries([]);
@@ -137,19 +138,19 @@ export class KnownGoodList implements KnownGoodMatcher {
 
   /** Adds a source from the screen. Resolves to an error message the analyst can read, or null on success. */
   async add(ip: string, note: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
-    return this.edit(fetchImpl, "/api/known-good", { method: "POST", body: JSON.stringify({ ip, note }), headers: { "content-type": "application/json" } });
+    return this.edit(fetchImpl, url("/api/known-good"), { method: "POST", body: JSON.stringify({ ip, note }), headers: { "content-type": "application/json" } });
   }
 
   async addSignature(signature: string, note: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
-    return this.edit(fetchImpl, "/api/known-good", { method: "POST", body: JSON.stringify({ signature, note }), headers: { "content-type": "application/json" } });
+    return this.edit(fetchImpl, url("/api/known-good"), { method: "POST", body: JSON.stringify({ signature, note }), headers: { "content-type": "application/json" } });
   }
 
   async remove(cidr: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
-    return this.edit(fetchImpl, `/api/known-good?cidr=${encodeURIComponent(cidr)}`, { method: "DELETE" });
+    return this.edit(fetchImpl, url(`/api/known-good?cidr=${encodeURIComponent(cidr)}`), { method: "DELETE" });
   }
 
   async removeSignature(signature: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
-    return this.edit(fetchImpl, `/api/known-good?signature=${encodeURIComponent(signature)}`, { method: "DELETE" });
+    return this.edit(fetchImpl, url(`/api/known-good?signature=${encodeURIComponent(signature)}`), { method: "DELETE" });
   }
 
   private async edit(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<string | null> {

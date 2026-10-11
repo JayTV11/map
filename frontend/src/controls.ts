@@ -1,3 +1,4 @@
+import { url } from "./base";
 import { ArcEngine } from "./arcs";
 
 /** Live toggle, CSV-intensity slider, and the dataset upload button.
@@ -13,7 +14,7 @@ export function wireControls(engine: ArcEngine, onFile: (file: File) => void): v
     intensityLabel.textContent = `${intensity.value} / 10`;
   });
   intensity.addEventListener("change", async () => {
-    await fetch("/api/controls/intensity", {
+    await fetch(url("/api/controls/intensity"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ intensity: Number(intensity.value) }),

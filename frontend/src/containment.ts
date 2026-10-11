@@ -1,3 +1,4 @@
+import { url } from "./base";
 /** Where each source stands in the response (investigating / escalated / blocked / false positive), shared by every
  *  analyst through the server (/api/containment). It only records what people did: it never blocks anything. */
 
@@ -52,7 +53,7 @@ export class ContainmentStore {
     const ctl = new AbortController();
     const t = window.setTimeout(() => ctl.abort(), 3000);
     try {
-      const resp = await fetchImpl("/api/containment", { cache: "no-store", signal: ctl.signal });
+      const resp = await fetchImpl(url("/api/containment"), { cache: "no-store", signal: ctl.signal });
       if (resp.status === 404) { this.setEntries([], false); return; } // an older backend
       if (!resp.ok) return; // keep what we have
       const body = (await resp.json()) as { enabled?: boolean; entries?: ContainmentEntry[] };
@@ -62,11 +63,11 @@ export class ContainmentStore {
 
   /** Resolves to a message the analyst can read, or null on success. */
   async set(ip: string, status: ContainmentStatus, note: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
-    return this.edit(fetchImpl, "/api/containment", { method: "PUT", body: JSON.stringify({ ip, status, note }), headers: { "content-type": "application/json" } });
+    return this.edit(fetchImpl, url("/api/containment"), { method: "PUT", body: JSON.stringify({ ip, status, note }), headers: { "content-type": "application/json" } });
   }
 
   async clear(ip: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
-    return this.edit(fetchImpl, `/api/containment?ip=${encodeURIComponent(ip)}`, { method: "DELETE" });
+    return this.edit(fetchImpl, url(`/api/containment?ip=${encodeURIComponent(ip)}`), { method: "DELETE" });
   }
 
   private async edit(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<string | null> {

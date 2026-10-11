@@ -1,3 +1,4 @@
+import { url } from "./base";
 /** What this server has seen from one source address: asked of the backend (/api/source-history), cached briefly,
  *  and announced when it arrives so the details can redraw. */
 
@@ -37,7 +38,7 @@ export class SourceHistoryStore {
     this.inflight.add(ip);
     let value: HistoryState;
     try {
-      const resp = await this.fetchImpl(`/api/source-history?ip=${encodeURIComponent(ip)}`, { cache: "no-store" });
+      const resp = await this.fetchImpl(url(`/api/source-history?ip=${encodeURIComponent(ip)}`), { cache: "no-store" });
       if (resp.status === 404) value = { state: "none" }; // an older backend
       else if (!resp.ok) throw new Error(String(resp.status));
       else {

@@ -1,3 +1,4 @@
+import { url } from "./base";
 import { SeverityLevel, severityColor, severityLabel, severityLevels } from "./types";
 
 interface MappingState {
@@ -140,7 +141,7 @@ export class IngestDialog {
     let data: Preview | { detail?: string };
     let ok = false;
     try {
-      const resp = await this.post("/api/ingest/preview", mapping);
+      const resp = await this.post(url("/api/ingest/preview"), mapping);
       ok = resp.ok;
       data = await resp.json();
     } catch {
@@ -168,7 +169,7 @@ export class IngestDialog {
     this.loadBtn.disabled = true;
     this.message.textContent = "Loading\u2026";
     try {
-      const resp = await this.post("/api/ingest/load", this.mapping);
+      const resp = await this.post(url("/api/ingest/load"), this.mapping);
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail ?? "Couldn't load that file");
       this.remember(this.mapping);

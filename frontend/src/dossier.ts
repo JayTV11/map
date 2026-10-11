@@ -1,3 +1,4 @@
+import { url } from "./base";
 import { CaseStore } from "./cases";
 import { ContainmentStore, isStatus, STATUS_LABEL, STATUSES } from "./containment";
 import { PivotField } from "./pivot";
@@ -233,7 +234,7 @@ export function openDossier(ip: string, deps: DossierDeps): void {
     const mine = ++seq;
     body.replaceChildren(el("div", "sm-empty", "Loading…"));
     try {
-      const resp = await fetch(`/api/source-dossier?ip=${encodeURIComponent(ip)}&hours=${hours}`, { cache: "no-store" });
+      const resp = await fetch(url(`/api/source-dossier?ip=${encodeURIComponent(ip)}&hours=${hours}`), { cache: "no-store" });
       if (!resp.ok) throw new Error(String(resp.status));
       const j = (await resp.json()) as { source: "live" | "simulated" | null; dossier: Dossier | null };
       if (mine !== seq) return;

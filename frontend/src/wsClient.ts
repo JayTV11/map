@@ -1,3 +1,4 @@
+import { wsUrl } from "./base";
 import { TrafficEvent } from "./types";
 
 /** `onState` reports whether the socket is currently up, so the UI can say
@@ -6,8 +7,7 @@ export function connectTrafficSocket(
   onEvent: (e: TrafficEvent) => void,
   onState?: (connected: boolean) => void,
 ): WebSocket {
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/ws`);
+    const ws = new WebSocket(wsUrl("/ws"));
 
   ws.onopen = () => onState?.(true);
   ws.onmessage = (msg) => {
