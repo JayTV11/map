@@ -1,3 +1,4 @@
+import { LinkSpec } from "./links";
 import { SeverityLevel, setSeverityLevels } from "./types";
 
 export interface AppConfig {
@@ -5,6 +6,8 @@ export interface AppConfig {
   home: { lat: number; lon: number; label: string };
   /** Fixed thresholds for the wall's threat level, or null to learn them (backend/config.yaml `threat_level`). */
   threat_level?: { elevated: number; high: number } | null;
+  /** Ticket/tool links shown in an event's details (backend/config.yaml `links:`). */
+  links?: LinkSpec[];
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -31,7 +34,7 @@ export async function loadConfig(fetchImpl: typeof fetch = (...a) => fetch(...a)
     const cfg = (await resp.json()) as AppConfig;
     if (!Array.isArray(cfg.severity?.levels) || cfg.severity.levels.length === 0) throw new Error("no levels");
     setSeverityLevels(cfg.severity.levels);
-    return { severity: cfg.severity, home: cfg.home ?? DEFAULT_CONFIG.home, threat_level: cfg.threat_level ?? null };
+    return { severity: cfg.severity, home: cfg.home ?? DEFAULT_CONFIG.home, threat_level: cfg.threat_level ?? null, links: Array.isArray(cfg.links) ? cfg.links : [] };
   } catch {
     return DEFAULT_CONFIG;
   } finally {

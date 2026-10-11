@@ -17,3 +17,5 @@ backend/known_good.yaml
 mapgen/node_modules/
 
 backend/data/
+
+backend/signatures.yaml

@@ -25,6 +25,10 @@ import { loadConfig } from "./config";
 import { SeverityUi } from "./severityUi";
 import { openIngestDialog } from "./ingestDialog";
 import { KnownGoodList } from "./knownGood";
+import { viewMode, WindowSync } from "./windowSync";
+import { openSummary } from "./summaryModal";
+import { SignatureNotes } from "./signatureNotes";
+import { SourceHistoryStore } from "./sourceHistory";
 import { EventGate } from "./gate";
 import { ViewFilters } from "./viewFilters";
 import { mountDayNight } from "./daynight";
@@ -41,10 +45,12 @@ import { PanelLayout } from "./panelLayout";
 import { LogView } from "./logView";
 import { ReviewStore } from "./reviews";
 import { ViewsPanel } from "./viewsPanel";
-import { ViewState, ViewStore, paramsToView, viewToParams } from "./views";
+import { ViewState, ViewStore, buildShareUrl, paramsToView, viewToParams } from "./views";
 import { isGroupMode, isSortMode } from "./logOrder";
 
 async function start(): Promise<void> {
+  const mode = viewMode(location.search);
+  if (mode !== "full") document.body.classList.add(`view-${mode}`);
   // The severity scale and the home site come from the backend, so everything
   // below (filter, legend, headline, colours) reflects YOUR data's scale.
   const cfg = await loadConfig();
@@ -139,6 +145,16 @@ async function start(): Promise<void> {
   const reviews = new ReviewStore(storage);
   detail.reviews = reviews;
   detail.knownGood = knownGood;
+  detail.onPivot = (field, value, and) => viewFilters.pivot(field, value, and);
+  detail.links = cfg.links ?? [];
+  const sourceHistory = new SourceHistoryStore();
+  sourceHistory.onChange = () => detail.refresh();
+  detail.history = sourceHistory;
+  const sigNotes = new SignatureNotes();
+  sigNotes.onChange = () => detail.refresh();
+  detail.notes = sigNotes;
+  void sigNotes.refresh();
+  sigNotes.startPolling();
   const LOG_PREFS = "sightline:log-prefs";
   const currentView = (): ViewState => ({
     ...viewFilters.getView(),
@@ -201,6 +217,13 @@ async function start(): Promise<void> {
     },
     getLayout: () => layout!.getState(),
     applyLayout: (l) => layout?.applyState(l),
+    openWindow: (m) => {
+      const url = new URL(buildShareUrl(location.href, currentView()));
+      url.searchParams.set("view", m);
+      window.open(url.toString(), m === "console" ? "sightline-console" : "sightline-map", m === "console" ? "popup,width=560,height=940" : "");
+    },
+    mode,
+    openSummary: () => openSummary({ reviews, onPivot: (f, v, a) => viewFilters.pivot(f, v, a) }),
   }).mount(document.getElementById("log-section"));
   // "J" jumps into the log for keyboard stepping (not while typing, and not on the wall).
   window.addEventListener("keydown", (ev) => {
@@ -291,6 +314,18 @@ async function start(): Promise<void> {
       }
     }
   }, 250);
+
+  // Two windows (the map on one screen, the log on another) follow each other's pinned alert.
+  const sync = new WindowSync((m) => {
+    if (m.type === "unpin") { focus.clear(true); return; }
+    const g = aggregator.find(m.event);
+    if (!g) return; // this window has not seen that activity (or it has aged out)
+    focus.select(g, logRows.get(g.id)?.el ?? document.createElement("div"), true);
+    logRows.get(g.id)?.el.scrollIntoView({ block: "nearest" });
+  });
+  if (sync.available) {
+    focus.onChange = (g) => sync.post(g ? { type: "pin", event: g.event } : { type: "unpin" });
+  }
 
   // Click an arc or an endpoint on the map to pin it, same as clicking its log row.
   wireMapPick(wrap, mapViewport, canvas, (x, y) => {

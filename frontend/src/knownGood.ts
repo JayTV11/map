@@ -5,7 +5,10 @@ import { ipInNet, IpNet, parseNet } from "./ipmatch";
  *  SOURCE address. No DOM here -- viewFilters.ts shows it. */
 
 export interface KnownGoodEntry {
-  cidr: string;
+  /** "source" (an address or range, the default) or "signature" (every event with this signature name). */
+  kind?: "source" | "signature";
+  cidr?: string;
+  signature?: string;
   note: string;
   /** "file" = known_good.yaml (admin); "analyst" = added from the screen. */
   source?: "file" | "analyst";
@@ -14,12 +17,19 @@ export interface KnownGoodEntry {
 }
 
 interface Parsed extends KnownGoodEntry {
-  net: IpNet;
+  net?: IpNet;
+}
+
+/** Same normalisation the server uses: case-insensitive, whitespace collapsed. */
+export function normSignature(s: string | null | undefined): string {
+  return (s ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 export interface KnownGoodMatcher {
   readonly size: number;
   matches(ip: string | null | undefined): boolean;
+  /** True when the event's source OR its signature is on the list. */
+  matchesEvent(e: { src_ip?: string | null; signature?: string | null }): boolean;
 }
 
 const MAX_CACHE = 5_000;
@@ -27,6 +37,7 @@ const MAX_CACHE = 5_000;
 export class KnownGoodList implements KnownGoodMatcher {
   private list: Parsed[] = [];
   private cache = new Map<string, Parsed | null>();
+  private sigs = new Set<string>();
   private signature = "";
   private timer: number | undefined;
 
@@ -40,6 +51,8 @@ export class KnownGoodList implements KnownGoodMatcher {
   get size(): number { return this.list.length; }
   /** True when an admin has turned on editing from the screen (config.yaml known_good: editable). */
   editable = false;
+  /** True when analysts may also mute a whole signature (known_good: allow_signature_mute). */
+  signatureMute = false;
 
   get entries(): readonly KnownGoodEntry[] { return this.list.map(({ net: _net, ...entry }) => entry); }
 
@@ -47,7 +60,7 @@ export class KnownGoodList implements KnownGoodMatcher {
     if (!ip || this.list.length === 0) return null;
     let hit = this.cache.get(ip);
     if (hit === undefined) {
-      hit = this.list.find((p) => ipInNet(ip, p.net)) ?? null;
+      hit = this.list.find((p) => p.net !== undefined && ipInNet(ip, p.net)) ?? null;
       if (this.cache.size >= MAX_CACHE) this.cache.clear();
       this.cache.set(ip, hit);
     }
@@ -58,13 +71,33 @@ export class KnownGoodList implements KnownGoodMatcher {
     return this.find(ip) !== null;
   }
 
+  /** The entry that mutes this signature, if any. */
+  findSignature(signature: string | null | undefined): KnownGoodEntry | null {
+    const n = normSignature(signature);
+    if (!n || this.sigs.size === 0 || !this.sigs.has(n)) return null;
+    return this.list.find((p) => p.kind === "signature" && normSignature(p.signature) === n) ?? null;
+  }
+
+  matchesEvent(e: { src_ip?: string | null; signature?: string | null }): boolean {
+    return this.matches(e.src_ip) || this.sigs.has(normSignature(e.signature));
+  }
+
   setEntries(entries: readonly KnownGoodEntry[], serverError: string | null = null): void {
     const parsed: Parsed[] = [];
+    const sigs = new Set<string>();
     for (const e of entries) {
-      const net = parseNet(e.cidr);
-      if (net) parsed.push({ cidr: e.cidr, note: e.note ?? "", source: e.source, added_by: e.added_by, added_at: e.added_at, net });
+      if (e.kind === "signature") {
+        const n = normSignature(e.signature);
+        if (!n) continue;
+        sigs.add(n);
+        parsed.push({ kind: "signature", signature: e.signature, note: e.note ?? "", source: e.source, added_by: e.added_by, added_at: e.added_at });
+        continue;
+      }
+      const net = e.cidr ? parseNet(e.cidr) : null;
+      if (net) parsed.push({ kind: "source", cidr: e.cidr, note: e.note ?? "", source: e.source, added_by: e.added_by, added_at: e.added_at, net });
     }
-    const sig = JSON.stringify([parsed.map((p) => [p.cidr, p.note, p.source, p.added_by]), serverError, this.editable]);
+    this.sigs = sigs;
+    const sig = JSON.stringify([parsed.map((p) => [p.kind, p.cidr, p.signature, p.note, p.source, p.added_by]), serverError, this.editable, this.signatureMute]);
     this.list = parsed;
     this.cache.clear();
     this.serverError = serverError;
@@ -86,9 +119,10 @@ export class KnownGoodList implements KnownGoodMatcher {
         return;
       }
       if (!resp.ok) throw new Error(String(resp.status));
-      const body = (await resp.json()) as { entries?: KnownGoodEntry[]; error?: string | null; editable?: boolean };
+      const body = (await resp.json()) as { entries?: KnownGoodEntry[]; error?: string | null; editable?: boolean; signature_mute?: boolean };
       this.loadFailed = false;
       this.editable = body.editable === true;
+      this.signatureMute = body.signature_mute === true;
       this.setEntries(Array.isArray(body.entries) ? body.entries : [], body.error ?? null);
     } catch {
       if (!this.loadFailed) {
@@ -106,8 +140,16 @@ export class KnownGoodList implements KnownGoodMatcher {
     return this.edit(fetchImpl, "/api/known-good", { method: "POST", body: JSON.stringify({ ip, note }), headers: { "content-type": "application/json" } });
   }
 
+  async addSignature(signature: string, note: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
+    return this.edit(fetchImpl, "/api/known-good", { method: "POST", body: JSON.stringify({ signature, note }), headers: { "content-type": "application/json" } });
+  }
+
   async remove(cidr: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
     return this.edit(fetchImpl, `/api/known-good?cidr=${encodeURIComponent(cidr)}`, { method: "DELETE" });
+  }
+
+  async removeSignature(signature: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
+    return this.edit(fetchImpl, `/api/known-good?signature=${encodeURIComponent(signature)}`, { method: "DELETE" });
   }
 
   private async edit(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<string | null> {

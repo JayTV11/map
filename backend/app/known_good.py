@@ -1,4 +1,4 @@
-"""The known-good source list: addresses whose traffic the map can mute.
+"""The known-good list: sources (and, optionally, alert names) whose traffic the map can mute.
 
 Typical entries are your vulnerability scanners, monitoring probes, backup
 servers and partner gateways -- sources that fire alerts all day and bury
@@ -12,6 +12,8 @@ gitignored; only the example is committed.
       - cidr: 10.20.9.0/24          # a whole range
         note: Monitoring probes
       - 192.0.2.77                  # a bare string works too
+      - signature: "ET SCAN Nessus Scanner"   # an alert name to mute, whatever its source (exact text)
+        note: Expected weekly scan
 
 Like assets.yaml, the file is re-read automatically when it changes (no
 restart), and a bad edit never blanks the list: a file that fails to parse
@@ -49,7 +51,9 @@ def _display(net: _Net) -> str:
 
 
 MAX_ADDED = 500
+MAX_ADDED_SIGNATURES = 200
 MAX_NOTE = 120
+MAX_SIGNATURE = 200
 
 
 class EditRefused(ValueError):
@@ -61,11 +65,18 @@ def _kg_settings() -> dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     return {
         "editable": raw.get("editable") is True,
+        # Muting a whole alert type can hide a real attack, so it is a separate, explicit opt-in.
+        "allow_signature_mute": raw.get("allow_signature_mute") is True,
         "user_header": str(raw.get("user_header") or "").strip(),
         # Widest range an analyst may mute in one go. Wider ones need the YAML file (an admin).
         "min_prefix_v4": int(raw.get("min_prefix_v4", 16)),
         "min_prefix_v6": int(raw.get("min_prefix_v6", 48)),
     }
+
+
+def _norm_sig(text: str) -> str:
+    """Signature names compare exactly, ignoring case and runs of spaces."""
+    return " ".join(str(text).split()).casefold()
 
 
 class KnownGoodList:
@@ -75,9 +86,11 @@ class KnownGoodList:
         self._path = path
         self._added_path = added_path
         self._audit_path = audit_path
-        self._added: list[dict[str, Any]] = []  # {net, note, added_by, added_at}
+        # Added from the screen: {"kind": "source"|"signature", "net"|"signature", "note", "added_by", "added_at"}
+        self._added: list[dict[str, Any]] = []
         self._load_added()
         self._entries: list[tuple[_Net, str]] = []
+        self._sigs: list[tuple[str, str]] = []  # (signature as written, note) from the yaml file
         self._mtime: Optional[float] = None
         self._next_check = 0.0
         self.error: Optional[str] = None
@@ -85,15 +98,20 @@ class KnownGoodList:
 
     @property
     def count(self) -> int:
-        return len(self._entries) + len(self._added)
+        return len(self._entries) + len(self._sigs) + len(self._added)
 
     def entries(self) -> list[dict[str, str]]:
         self._maybe_reload()
-        out: list[dict[str, str]] = [{"cidr": _display(net), "note": note, "source": "file"} for net, note in self._entries]
-        out += [
-            {"cidr": _display(a["net"]), "note": a["note"], "source": "analyst", "added_by": a["added_by"], "added_at": a["added_at"]}
-            for a in self._added
+        out: list[dict[str, str]] = [
+            {"kind": "source", "cidr": _display(net), "note": note, "source": "file"} for net, note in self._entries
         ]
+        out += [{"kind": "signature", "signature": sig, "note": note, "source": "file"} for sig, note in self._sigs]
+        for a in self._added:
+            who = {"source": "analyst", "added_by": a["added_by"], "added_at": a["added_at"]}
+            if a["kind"] == "signature":
+                out.append({"kind": "signature", "signature": a["signature"], "note": a["note"], **who})
+            else:
+                out.append({"kind": "source", "cidr": _display(a["net"]), "note": a["note"], **who})
         return out
 
     def info(self) -> dict[str, Any]:
@@ -110,7 +128,16 @@ class KnownGoodList:
             return False
         if any(addr.version == net.version and addr in net for net, _ in self._entries):
             return True
-        return any(addr.version == a["net"].version and addr in a["net"] for a in self._added)
+        return any(a["kind"] == "source" and addr.version == a["net"].version and addr in a["net"] for a in self._added)
+
+    def matches_signature(self, signature: Optional[str]) -> bool:
+        if not signature:
+            return False
+        self._maybe_reload()
+        key = _norm_sig(signature)
+        return any(_norm_sig(sig) == key for sig, _ in self._sigs) or any(
+            a["kind"] == "signature" and _norm_sig(a["signature"]) == key for a in self._added
+        )
 
     # ---- edits from the screen --------------------------------------------------------
     def add(self, spec: str, note: str, user: str) -> dict[str, str]:
@@ -130,11 +157,12 @@ class KnownGoodList:
             )
         self._maybe_reload()
         key = str(net)
-        if any(str(n) == key for n, _ in self._entries) or any(str(a["net"]) == key for a in self._added):
+        if any(str(n) == key for n, _ in self._entries) or any(a["kind"] == "source" and str(a["net"]) == key for a in self._added):
             raise EditRefused("That source is already on the list.")
-        if len(self._added) >= MAX_ADDED:
+        if sum(1 for a in self._added if a["kind"] == "source") >= MAX_ADDED:
             raise EditRefused(f"The screen-added list is full ({MAX_ADDED}). Ask an admin to tidy it.")
         entry = {
+            "kind": "source",
             "net": net,
             "note": " ".join(str(note or "").split())[:MAX_NOTE],
             "added_by": user,
@@ -142,8 +170,32 @@ class KnownGoodList:
         }
         self._added.append(entry)
         self._save_added()
-        self._audit("add", net, entry["note"], user)
+        self._audit("add", _display(net), entry["note"], user)
         return {"cidr": _display(net), "note": entry["note"]}
+
+    def add_signature(self, signature: str, note: str, user: str) -> dict[str, str]:
+        """Mutes one alert name (exact text) for everyone. A reason is required: this is the riskier kind of mute."""
+        if not _kg_settings()["allow_signature_mute"]:
+            raise EditRefused("Muting an alert name from the screen is turned off. An admin can turn it on (known_good: allow_signature_mute: true).")
+        sig = " ".join(str(signature or "").split())
+        if not sig:
+            raise EditRefused("That event has no alert name to mute.")
+        if len(sig) > MAX_SIGNATURE:
+            raise EditRefused("That alert name is too long to mute.")
+        reason = " ".join(str(note or "").split())[:MAX_NOTE]
+        if len(reason) < 5:
+            raise EditRefused("Say why it is safe to mute (a few words), so the next analyst knows.")
+        self._maybe_reload()
+        if self.matches_signature(sig):
+            raise EditRefused("That alert name is already on the list.")
+        if sum(1 for a in self._added if a["kind"] == "signature") >= MAX_ADDED_SIGNATURES:
+            raise EditRefused(f"The screen-added alert list is full ({MAX_ADDED_SIGNATURES}). Ask an admin to tidy it.")
+        entry = {"kind": "signature", "signature": sig, "note": reason, "added_by": user,
+                 "added_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        self._added.append(entry)
+        self._save_added()
+        self._audit("add-signature", sig, reason, user)
+        return {"signature": sig, "note": reason}
 
     def remove(self, spec: str, user: str) -> None:
         try:
@@ -152,14 +204,26 @@ class KnownGoodList:
             raise EditRefused("That is not a valid IP address or range.") from None
         key = str(net)
         for i, a in enumerate(self._added):
-            if str(a["net"]) == key:
+            if a["kind"] == "source" and str(a["net"]) == key:
                 del self._added[i]
                 self._save_added()
-                self._audit("remove", net, a["note"], user)
+                self._audit("remove", _display(net), a["note"], user)
                 return
         if any(str(n) == key for n, _ in self._entries):
             raise EditRefused("That entry comes from known_good.yaml. Ask an admin to remove it there.")
         raise EditRefused("That source is not on the list.")
+
+    def remove_signature(self, signature: str, user: str) -> None:
+        key = _norm_sig(signature)
+        for i, a in enumerate(self._added):
+            if a["kind"] == "signature" and _norm_sig(a["signature"]) == key:
+                del self._added[i]
+                self._save_added()
+                self._audit("remove-signature", a["signature"], a["note"], user)
+                return
+        if any(_norm_sig(sig) == key for sig, _ in self._sigs):
+            raise EditRefused("That entry comes from known_good.yaml. Ask an admin to remove it there.")
+        raise EditRefused("That alert name is not on the list.")
 
     def _load_added(self) -> None:
         self._added = []
@@ -168,32 +232,36 @@ class KnownGoodList:
         try:
             raw = json.loads(self._added_path.read_text(encoding="utf-8"))
             for item in (raw.get("entries") if isinstance(raw, dict) else None) or []:
-                self._added.append({
-                    "net": ipaddress.ip_network(str(item["cidr"]), strict=False),
+                common = {
                     "note": str(item.get("note") or "")[:MAX_NOTE],
                     "added_by": str(item.get("added_by") or "unknown"),
                     "added_at": str(item.get("added_at") or ""),
-                })
+                }
+                if item.get("signature"):
+                    self._added.append({"kind": "signature", "signature": str(item["signature"])[:MAX_SIGNATURE], **common})
+                else:
+                    self._added.append({"kind": "source", "net": ipaddress.ip_network(str(item["cidr"]), strict=False), **common})
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
             print(f"[known_good] {self._added_path.name} was not loaded: {exc!r}")  # never blocks the yaml list
 
     def _save_added(self) -> None:
         if self._added_path is None:
             return
-        data = {"entries": [
-            {"cidr": _display(a["net"]), "note": a["note"], "added_by": a["added_by"], "added_at": a["added_at"]} for a in self._added
-        ]}
+        rows = []
+        for a in self._added:
+            who = {"note": a["note"], "added_by": a["added_by"], "added_at": a["added_at"]}
+            rows.append({"signature": a["signature"], **who} if a["kind"] == "signature" else {"cidr": _display(a["net"]), **who})
         try:
             self._added_path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self._added_path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            tmp.write_text(json.dumps({"entries": rows}, indent=2), encoding="utf-8")
             os.replace(tmp, self._added_path)  # atomic: a crash can't leave half a file
         except OSError as exc:
             raise EditRefused(f"The change could not be saved on the server ({type(exc).__name__}). Is the data folder writable?") from exc
 
-    def _audit(self, action: str, net: _Net, note: str, user: str) -> None:
-        line = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "action": action, "cidr": _display(net), "note": note, "user": user}
-        print(f"[known_good] {action} {line['cidr']} by {user}")
+    def _audit(self, action: str, what: str, note: str, user: str) -> None:
+        line = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "action": action, "cidr": what, "note": note, "user": user}
+        print(f"[known_good] {action} {what} by {user}")
         if self._audit_path is None:
             return
         try:
@@ -223,7 +291,7 @@ class KnownGoodList:
             self._mtime = None
 
         if self._mtime is None:
-            self._entries, self.error = [], None  # no file = feature simply off
+            self._entries, self._sigs, self.error = [], [], None  # no file = feature simply off
             return
 
         try:
@@ -244,28 +312,37 @@ class KnownGoodList:
             return
 
         entries: list[tuple[_Net, str]] = []
+        sigs: list[tuple[str, str]] = []
         seen: set[str] = set()
         skipped = 0
         for i, item in enumerate(items, start=1):
             try:
+                if isinstance(item, dict) and item.get("signature"):
+                    sig = " ".join(str(item["signature"]).split())
+                    key = "sig:" + _norm_sig(sig)
+                    if key not in seen:
+                        seen.add(key)
+                        sigs.append((sig[:MAX_SIGNATURE], str(item.get("note") or "").strip()[:MAX_NOTE]))
+                    continue
                 if isinstance(item, (str, int)):
                     spec, note = str(item), ""
                 else:
                     spec = str(item.get("cidr") or item.get("ip") or "").strip()
                     note = str(item.get("note") or item.get("name") or "").strip()
                 if not spec:
-                    raise ValueError("needs an 'ip' or 'cidr'")
+                    raise ValueError("needs an 'ip', 'cidr' or 'signature'")
                 net = ipaddress.ip_network(spec.strip(), strict=False)
                 key = str(net)
                 if key in seen:
                     continue  # harmless duplicate
                 seen.add(key)
-                entries.append((net, note[:120]))
+                entries.append((net, note[:MAX_NOTE]))
             except (TypeError, ValueError, AttributeError) as exc:
                 skipped += 1
                 print(f"[known_good] entry {i} skipped: {exc!r}")
 
         self._entries = entries
+        self._sigs = sigs
         self.error = f"{skipped} entr{'y' if skipped == 1 else 'ies'} skipped (see server log)" if skipped else None
 
 

@@ -76,7 +76,8 @@ with tempfile.TemporaryDirectory() as d:
     api = FastAPI(); api.include_router(route.router)
     r = TestClient(api).get("/api/known-good")
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
-    assert r.json() == {"entries": [{"cidr": "10.9.9.9", "note": "x", "source": "file"}], "editable": False, "loaded": True, "count": 1, "error": None}, r.json()
+    assert r.json() == {"entries": [{"kind": "source", "cidr": "10.9.9.9", "note": "x", "source": "file"}], "editable": False,
+                        "signature_mute": False, "loaded": True, "count": 1, "error": None}, r.json()
 
 # ---- editing from the screen -------------------------------------------------------------
 import json  # noqa: E402
@@ -142,7 +143,7 @@ with tempfile.TemporaryDirectory() as d:
     H = {"x-sightline-edit": "1"}
 
     def settings(**kw):
-        base = {"editable": False, "user_header": "", "min_prefix_v4": 16, "min_prefix_v6": 48}
+        base = {"editable": False, "allow_signature_mute": False, "user_header": "", "min_prefix_v4": 16, "min_prefix_v6": 48}
         base.update(kw)
         route._kg_settings = lambda: base
 
@@ -165,5 +166,60 @@ with tempfile.TemporaryDirectory() as d:
     assert c.delete("/api/known-good?cidr=203.0.113.9", headers=H).status_code == 401
     assert c.delete("/api/known-good?cidr=203.0.113.9", headers={**H, "x-forwarded-user": "ana@corp"}).status_code == 200
     assert c.delete("/api/known-good?cidr=203.0.113.9", headers={**H, "x-forwarded-user": "ana@corp"}).status_code == 400
+
+# ---- muting an alert name -----------------------------------------------------------------
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d)
+    write(d / "known_good.yaml", "sources:\n  - ip: 10.9.9.9\n  - signature: 'ET SCAN  Nessus Scanner'\n    note: weekly scan\n")
+    kg = KnownGoodList(d / "known_good.yaml", d / "added.json", d / "audit.log")
+    assert kg.matches_signature("et scan nessus scanner") and not kg.matches_signature("ET SCAN Nessus Scanner v2")
+    assert kg.count == 2
+    sigs = [e for e in kg.entries() if e["kind"] == "signature"]
+    assert sigs == [{"kind": "signature", "signature": "ET SCAN Nessus Scanner", "note": "weekly scan", "source": "file"}], sigs
+
+    kgmod._kg_settings = lambda: {"editable": True, "allow_signature_mute": False, "user_header": "", "min_prefix_v4": 16, "min_prefix_v6": 48}
+    assert "turned off" in refused(kg.add_signature, "ET POLICY Foo", "harmless inventory tool", "u")
+    kgmod._kg_settings = lambda: {"editable": True, "allow_signature_mute": True, "user_header": "", "min_prefix_v4": 16, "min_prefix_v6": 48}
+    assert "why it is safe" in refused(kg.add_signature, "ET POLICY Foo", "", "u")
+    assert "no alert name" in refused(kg.add_signature, "  ", "harmless inventory tool", "u")
+    assert "already" in refused(kg.add_signature, "ET SCAN Nessus Scanner", "harmless inventory tool", "u")
+    kg.add_signature("ET POLICY  Foo", "harmless inventory tool", "ana@corp")
+    assert kg.matches_signature("et policy foo") and kg.count == 3
+    assert KnownGoodList(d / "known_good.yaml", d / "added.json", d / "audit.log").matches_signature("ET POLICY Foo")  # persisted
+    assert "known_good.yaml" in refused(kg.remove_signature, "ET SCAN Nessus Scanner", "u")
+    assert "not on the list" in refused(kg.remove_signature, "Nope", "u")
+    kg.remove_signature("et policy foo", "ana@corp")
+    assert not kg.matches_signature("ET POLICY Foo")
+    log = [json.loads(x) for x in (d / "audit.log").read_text().splitlines()]
+    assert [x["action"] for x in log] == ["add-signature", "remove-signature"]
+
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d)
+    write(d / "known_good.yaml", "sources: []\n")
+    route.known_good = KnownGoodList(d / "known_good.yaml", d / "added.json", d / "audit.log")
+    api = FastAPI(); api.include_router(route.router)
+    c = TestClient(api)
+    H = {"x-sightline-edit": "1"}
+    def settings2(**kw):
+        base = {"editable": True, "allow_signature_mute": True, "user_header": "", "min_prefix_v4": 16, "min_prefix_v6": 48}
+        base.update(kw)
+        route._kg_settings = lambda: base
+        kgmod._kg_settings = route._kg_settings
+    settings2(allow_signature_mute=False)
+    r = c.post("/api/known-good", json={"signature": "ET POLICY Foo", "note": "harmless inventory tool"}, headers=H)
+    assert r.status_code == 400 and "turned off" in r.json()["detail"], r.text
+    assert c.get("/api/known-good").json()["signature_mute"] is False
+    settings2()
+    assert c.get("/api/known-good").json()["signature_mute"] is True
+    assert c.post("/api/known-good", json={"signature": "ET POLICY Foo", "ip": "1.2.3.4"}, headers=H).status_code == 400   # exactly one
+    assert c.post("/api/known-good", json={"note": "x"}, headers=H).status_code == 400
+    r = c.post("/api/known-good", json={"signature": "ET POLICY Foo", "note": "harmless inventory tool"}, headers=H)
+    assert r.status_code == 200 and r.json()["signature"] == "ET POLICY Foo", r.text
+    ent = c.get("/api/known-good").json()["entries"]
+    assert ent == [{"kind": "signature", "signature": "ET POLICY Foo", "note": "harmless inventory tool", "source": "analyst",
+                    "added_by": "unknown (no user header configured)", "added_at": ent[0]["added_at"]}], ent
+    assert c.delete("/api/known-good?signature=ET%20POLICY%20Foo", headers=H).status_code == 200
+    assert c.delete("/api/known-good?signature=ET%20POLICY%20Foo", headers=H).status_code == 400
+    assert c.delete("/api/known-good", headers=H).status_code == 400
 
 print("known_good: all tests passed")

@@ -96,3 +96,15 @@ home:
 #   user_header: X-Forwarded-User
 #   min_prefix_v4: 16     # the widest range (smallest /N) an analyst may mute; wider ones go in known_good.yaml
 #   min_prefix_v6: 48
+#   allow_signature_mute: true   # also let analysts mute a whole signature (needs a written reason; hides it for everyone)
+
+# Links shown in an event's details, so an analyst can jump to a ticket form, threat-intel lookup, etc.
+# {placeholders} are filled in (URL-encoded) from the event. Available: src_ip dst_ip src_port dst_port
+# signature signature_id severity category time src_asset dst_asset score. http(s) only, 12 at most.
+# public_only: true hides the link when the address is private (use for outside lookups).
+# links:
+#   - label: "VirusTotal (source)"
+#     url: "https://www.virustotal.com/gui/ip-address/{src_ip}"
+#     public_only: true
+#   - label: "New ticket"
+#     url: "https://tickets.example.com/new?title={signature}&src={src_ip}&dst={dst_ip}"

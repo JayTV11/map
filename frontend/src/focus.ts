@@ -1,7 +1,7 @@
 import { ArcEngine } from "./arcs";
 import { EventGroup, summarize } from "./aggregator";
 import { DetailPanel } from "./detailPanel";
-import { severityColor } from "./types";
+import { paintSeverity } from "./types";
 
 /** Owns the "pin one event as a static missile" workflow end to end:
  *  toggling ArcEngine's pinned state, highlighting the selected log row,
@@ -23,6 +23,8 @@ import { severityColor } from "./types";
 export class FocusController {
   private selectedId: number | null = null;
   private selectedEl: HTMLElement | null = null;
+  /** Told when the analyst pins or unpins (not when a sync from another window does): see windowSync.ts. */
+  onChange?: (group: EventGroup | null) => void;
 
   constructor(
     private engine: ArcEngine,
@@ -49,7 +51,7 @@ export class FocusController {
   }
 
   /** Pins `group` (without toggling it off if it already is). */
-  select(group: EventGroup, el: HTMLElement): void {
+  select(group: EventGroup, el: HTMLElement, silent = false): void {
     if (this.selectedId === group.id) return;
     this.selectedEl?.classList.remove("selected");
     el.classList.add("selected");
@@ -59,9 +61,10 @@ export class FocusController {
     this.detail.show(group.event, summarize(group), group.key);
 
     const e = group.event;
-    this.dot.style.background = severityColor(group.severity);
+    paintSeverity(this.dot, group.severity);
     this.text.textContent = `${e.src_ip ?? "?"} \u2192 ${e.dst_ip ?? "?"}`;
     this.banner.hidden = false;
+    if (!silent) this.onChange?.(group);
   }
 
   get hasSelection(): boolean { return this.selectedId !== null; }
@@ -80,12 +83,14 @@ export class FocusController {
     this.detail.show(group.event, summarize(group), group.key);
   }
 
-  clear(): void {
+  clear(silent = false): void {
+    const had = this.selectedId !== null;
     this.selectedEl?.classList.remove("selected");
     this.selectedId = null;
     this.selectedEl = null;
     this.engine.unpin();
     this.detail.hide(false);
     this.banner.hidden = true;
+    if (had && !silent) this.onChange?.(null);
   }
 }

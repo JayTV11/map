@@ -1,19 +1,12 @@
 import { GroupSummary } from "./aggregator";
+import { isPrivateIp, linksFor, LinkSpec } from "./links";
 import { KnownGoodList } from "./knownGood";
 import { openMuteConfirm } from "./muteConfirm";
+import { PivotField } from "./pivot";
 import { ReviewStore } from "./reviews";
+import { SignatureNotes } from "./signatureNotes";
+import { SourceHistory, SourceHistoryStore } from "./sourceHistory";
 import { AssetRef, isKeyAsset, severityColor, severityLabel, severityLevels, TrafficEvent } from "./types";
-
-/** True for RFC1918 / loopback / link-local IPv4 -- pivots to external
- *  lookup sites are only offered for public addresses so internal IPs
- *  aren't one misclick away from being sent to a third party. */
-function isPrivateIp(ip: string): boolean {
-  const m = ip.match(/^(\d+)\.(\d+)\.\d+\.\d+$/);
-  if (!m) return true; // IPv6 / unparseable: don't offer a pivot
-  const a = Number(m[1]), b = Number(m[2]);
-  return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) || (a === 169 && b === 254);
-}
 
 function endpoint(ip: string | null, port: number | null): string {
   if (!ip) return "?";
@@ -53,6 +46,14 @@ export class DetailPanel {
   nav: DetailNav | null = null;
   /** The shared known-good list; with it (and editing turned on by an admin) a "Mute this source" button appears. */
   knownGood: KnownGoodList | null = null;
+  /** Click a value to filter the screen to it (Shift-click adds it to the current search). Wired in main.ts. */
+  onPivot: ((field: PivotField, value: string, and: boolean) => void) | null = null;
+  /** What this server has seen from the source (asked of the backend; the details redraw when it arrives). */
+  history: SourceHistoryStore | null = null;
+  /** The admin's plain-English notes on alert types. */
+  notes: SignatureNotes | null = null;
+  /** Ticket and tool links from config.yaml. */
+  links: readonly LinkSpec[] = [];
   private store: ReviewStore | null = null;
 
   get reviews(): ReviewStore | null { return this.store; }
@@ -182,6 +183,89 @@ export class DetailPanel {
     if (notify && wasOpen) this.onClose?.();
   }
 
+  /** A value that filters the screen to itself when clicked. */
+  private pivotEl(tag: "span" | "div", text: string, field: PivotField, value: string, cls = ""): HTMLElement {
+    const b: HTMLElement = document.createElement(tag);
+    b.className = `pivot ${cls}`.trim();
+    b.textContent = text;
+    if (!this.onPivot) return b;
+    b.tabIndex = 0;
+    b.setAttribute("role", "button");
+    b.title = `Show only ${field.replace("_", " ")} ${value}  (Shift-click: add to the current search)`;
+    const go = (and: boolean): void => { if (this.overlay) this.collapse(); this.onPivot?.(field, value, and); };
+    b.addEventListener("click", (ev) => { ev.stopPropagation(); go(ev.shiftKey); });
+    b.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ev.stopPropagation(); go(ev.shiftKey); }
+    });
+    return b;
+  }
+
+  private noteBlock(e: TrafficEvent): HTMLElement | null {
+    const n = this.notes?.find(e.signature, e.signature_id);
+    if (!n) return null;
+    const box = document.createElement("div");
+    box.className = "detail-signote";
+    const head = document.createElement("div");
+    head.className = "sn-head";
+    head.textContent = "What this alert means";
+    const what = document.createElement("div");
+    what.textContent = n.what;
+    box.append(head, what);
+    if (n.action) {
+      const h2 = document.createElement("div");
+      h2.className = "sn-head";
+      h2.textContent = "What to do";
+      const act = document.createElement("div");
+      act.textContent = n.action;
+      box.append(h2, act);
+    }
+    if (n.link && /^https?:\/\//i.test(n.link)) {
+      const a = document.createElement("a");
+      a.href = n.link;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = "Runbook \u2197";
+      box.append(a);
+    }
+    return box;
+  }
+
+  private historyBlock(e: TrafficEvent): HTMLElement | null {
+    if (!this.history || !e.src_ip) return null;
+    const st = this.history.get(e.src_ip);
+    const box = document.createElement("div");
+    box.className = "detail-history";
+    const head = document.createElement("div");
+    head.className = "dh-head";
+    head.textContent = "Seen from this source before";
+    box.append(head);
+    const line = (t: string): void => { const d = document.createElement("div"); d.className = "dh-line"; d.textContent = t; box.append(d); };
+    if (st.state === "loading") line("Checking\u2026");
+    else if (st.state === "error") line("Couldn\u2019t reach the server for the history.");
+    else if (st.state === "none") line("Nothing recorded for this address yet.");
+    else {
+      const h: SourceHistory = st.history;
+      const when = (iso: string): string => new Date(iso).toLocaleString();
+      line(`${h.events.toLocaleString()} event${h.events === 1 ? "" : "s"} \u00b7 first ${when(h.first_seen)} \u00b7 last ${when(h.last_seen)}`);
+      line(`${h.distinct_targets.toLocaleString()} different target${h.distinct_targets === 1 ? "" : "s"} \u00b7 ${h.distinct_signatures.toLocaleString()} different alert type${h.distinct_signatures === 1 ? "" : "s"}${st.feed === "simulated" ? " (demo data)" : ""}`);
+      const tops = (label: string, items: { name: string; n: number }[], field?: PivotField): void => {
+        if (items.length === 0) return;
+        const row = document.createElement("div");
+        row.className = "dh-line";
+        row.append(`${label}: `);
+        items.slice(0, 3).forEach((it, i) => {
+          if (i > 0) row.append(", ");
+          row.append(field ? this.pivotEl("span", it.name, field, it.name) : it.name, ` (${it.n.toLocaleString()})`);
+        });
+        box.append(row);
+      };
+      tops("Top alerts", h.top_signatures, "signature");
+      tops("Top targets", h.top_targets);
+      tops("Top ports", h.top_ports, "dst_port");
+    }
+    return box;
+  }
+
   private anomalyBlock(a: NonNullable<TrafficEvent["anomaly"]>): HTMLElement {
     const box = document.createElement("div");
     box.className = `detail-anomaly an-${a.level}${a.learning ? " an-learning" : ""}`;
@@ -254,6 +338,9 @@ export class DetailPanel {
     return !!root && a instanceof HTMLTextAreaElement && root.contains(a);
   }
 
+  /** Redraw because something the details show (history, notes) arrived. */
+  refresh(): void { this.redraw(); }
+
   private redraw(): void {
     if (!this.current) return;
     const { e, summary, key } = this.current;
@@ -270,29 +357,30 @@ export class DetailPanel {
     const body = target;
     target.classList.toggle("detail-large", large);
 
-    const sig = document.createElement("div");
-    sig.className = "detail-sig";
-    sig.textContent = e.signature ?? "(no signature)";
-    const badge = document.createElement("span");
-    badge.className = "detail-badge";
-    badge.textContent = severityLabel(e.severity);
+    const sig = e.signature ? this.pivotEl("div", e.signature, "signature", e.signature, "detail-sig") : document.createElement("div");
+    if (!e.signature) { sig.className = "detail-sig"; sig.textContent = "(no signature)"; }
+    const badge = this.pivotEl("span", severityLabel(e.severity), "severity", e.severity, "detail-badge");
     badge.style.background = severityColor(e.severity);
     body.append(badge, sig);
+    const sigNote = this.noteBlock(e);
+    if (sigNote) body.append(sigNote);
     if (e.anomaly) body.append(this.anomalyBlock(e.anomaly));
+    const hist = this.historyBlock(e);
+    if (hist) body.append(hist);
     if (key && this.store) body.append(this.reviewBlock(key, large));
 
     const grouped = summary !== undefined && summary.count > 1;
-    const rows: [string, string | null][] = [
+    const rows: [string, string | null, PivotField?, string?][] = [
       ["Flow", `${endpoint(e.src_ip, e.src_port)} \u2192 ${endpoint(e.dst_ip, e.dst_port)}`],
-      ["Source system", assetText(e.src_asset)],
-      ["Target system", assetText(e.dst_asset)],
-      ["Direction", e.direction ? DIRECTION_TEXT[e.direction] : null],
+      ["Source system", assetText(e.src_asset), "src_asset", e.src_asset?.name],
+      ["Target system", assetText(e.dst_asset), "dst_asset", e.dst_asset?.name],
+      ["Direction", e.direction ? DIRECTION_TEXT[e.direction] : null, "direction", e.direction ?? undefined],
       ["Count", grouped ? `${summary!.count.toLocaleString()} events` : null],
       ["Dest ports", grouped && summary!.dstPorts.length > 1 ? formatPorts(summary!.dstPorts) : null],
-      ["Protocol", e.protocol ? e.protocol.toUpperCase() : null],
-      ["Action", e.action],
-      ["Category", e.category],
-      ["Rule ID", e.signature_id],
+      ["Protocol", e.protocol ? e.protocol.toUpperCase() : null, "protocol", e.protocol ?? undefined],
+      ["Action", e.action, "action", e.action ?? undefined],
+      ["Category", e.category, "category", e.category ?? undefined],
+      ["Rule ID", e.signature_id, "signature_id", e.signature_id ?? undefined],
       ["Time", grouped ? null : new Date(e.alert_time ?? e.timestamp).toLocaleString()],
       ["First seen", grouped ? new Date(summary!.firstSeen).toLocaleString() : null],
       ["Last seen", grouped ? new Date(summary!.lastSeen).toLocaleString() : null],
@@ -303,10 +391,21 @@ export class DetailPanel {
     ];
     const dl = document.createElement("dl");
     dl.className = "detail-grid";
-    for (const [k, v] of rows) {
+    for (const [k, v, pf, pv] of rows) {
       if (v === null || v === "") continue;
       const dt = document.createElement("dt"); dt.textContent = k;
-      const dd = document.createElement("dd"); dd.textContent = v;
+      const dd = document.createElement("dd");
+      if (k === "Flow") {
+        // Each address is its own pivot; the ports are plain text.
+        const part = (ip: string | null, port: number | null, f: PivotField): void => {
+          if (ip) dd.append(this.pivotEl("span", ip, f, ip), port !== null ? `:${port}` : "");
+          else dd.append("?");
+        };
+        part(e.src_ip, e.src_port, "src_ip");
+        dd.append(" \u2192 ");
+        part(e.dst_ip, e.dst_port, "dst_ip");
+      } else if (pf && pv) dd.append(this.pivotEl("span", v, pf, pv));
+      else dd.textContent = v;
       dl.append(dt, dd);
     }
     body.append(dl);
@@ -342,7 +441,9 @@ export class DetailPanel {
       actions.append(a);
     };
     if (e.kibana_url) link("Open in Kibana ↗", e.kibana_url);
-    if (e.src_ip && !isPrivateIp(e.src_ip)) {
+    for (const l of linksFor(this.links, e)) link(`${l.label} \u2197`, l.href);
+    // The built-in lookups are the default; an admin who configures links: gets exactly their own list.
+    if (this.links.length === 0 && e.src_ip && !isPrivateIp(e.src_ip)) {
       link("VirusTotal (source IP) ↗", `https://www.virustotal.com/gui/ip-address/${encodeURIComponent(e.src_ip)}`);
       link("AbuseIPDB (source IP) ↗", `https://www.abuseipdb.com/check/${encodeURIComponent(e.src_ip)}`);
     }
@@ -380,7 +481,7 @@ export class DetailPanel {
         const already = list.find(e.src_ip);
         mute.textContent = already ? "Source is muted \u2713" : "Mute this source\u2026";
         mute.disabled = !!already;
-        mute.title = already ? `Already on the known-good list (${already.cidr})` : "Hide this source's traffic from every screen (asks first)";
+        mute.title = already ? `Already on the known-good list (${already.cidr ?? already.signature})` : "Hide this source's traffic from every screen (asks first)";
         mute.addEventListener("click", () => {
           const warnings: string[] = [];
           if (e.severity === severityLevels()[0]?.id) warnings.push(`This event is ${severityLabel(e.severity)}. Muting hides everything from this source, including future events like it.`);
@@ -399,6 +500,31 @@ export class DetailPanel {
         });
         actions.append(mute);
       }
+    }
+    // Muting by signature is a separate, stricter switch: it hides a rule's alerts for everyone, from any source.
+    const sigList = this.knownGood;
+    if (e.signature && sigList?.editable && sigList.signatureMute) {
+      const m = document.createElement("button");
+      m.type = "button";
+      m.className = "btn";
+      const already = sigList.findSignature(e.signature);
+      m.textContent = already ? "Signature is muted \u2713" : "Mute this signature\u2026";
+      m.disabled = !!already;
+      m.title = already ? "Already muted" : "Hide every alert with this signature, from any source, on every screen (asks first)";
+      m.addEventListener("click", () => {
+        const warnings = ["This hides the signature everywhere, so it would also hide a real attack that triggers it."];
+        if (e.severity === severityLevels()[0]?.id) warnings.push(`This event is ${severityLabel(e.severity)}.`);
+        if (isKeyAsset(e.dst_asset)) warnings.push(`It is aimed at a key system (${e.dst_asset!.name}).`);
+        openMuteConfirm({
+          ip: e.signature!, kind: "signature", defaultNote: "", warnings,
+          submit: async (note) => {
+            const err = await sigList.addSignature(e.signature!, note);
+            if (err === null) this.redraw();
+            return err;
+          },
+        });
+      });
+      actions.append(m);
     }
     body.append(actions);
 

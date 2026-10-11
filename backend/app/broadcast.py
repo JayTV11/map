@@ -30,6 +30,8 @@ from fastapi import WebSocket
 from .anomaly import score_event
 from .assets import directory
 from .config import config
+from .insights import observe_event
+from .known_good import known_good
 from .models import TrafficEvent
 from .status import status
 
@@ -62,6 +64,7 @@ class Broadcaster:
         status.event(event.source)  # replays bypass publish(), so this only ever counts genuinely new events
         directory.enrich(event)  # before buffering, so replayed copies carry the names too
         event.anomaly = score_event(event)  # same reason: a replay shows the score the event had when it happened
+        observe_event(event, known_good.matches(event.src_ip) or known_good.matches_signature(event.signature))
         # Only real Elastic events get buffered/replayed -- CSV mode is
         # already a continuous synthetic stream and doesn't need help.
         if event.source == "elastic":

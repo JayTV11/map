@@ -82,3 +82,18 @@ body.kiosk .log-tools{display:none;}
 .mc-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
 .mc-actions .btn{width:auto;padding:7px 16px;}
 .mc-ok:disabled{opacity:.5;cursor:wait;}
+
+.vw-hint{font-size:11px;opacity:.6;margin:4px 0 2px;line-height:1.35;}
+
+/* ---- second-window modes: ?view=console (log + search only) and ?view=map (no sidebar) ---- */
+body.view-map #sidebar{display:none;}
+body.view-console #app{flex-direction:column;}
+body.view-console #map-wrap{flex:0 0 auto;height:212px;}
+body.view-console #feed-banner{top:50px;}
+body.view-console #gate-badge{bottom:8px;left:20px;transform:none;}
+body.view-console #sidebar > :not(#detail-section):not(#mute-section):not(#views-section):not(#log-section):not(#feed-status){display:none;}
+body.view-console #map-viewport,body.view-console #fx,body.view-console #zoom-controls,body.view-console #stats-strip,
+body.view-console #legend,body.view-console #focus-banner,body.view-console #topbar .sub{display:none;}
+body.view-console #topbar{padding:12px 20px;}
+body.view-console #filter-bar{top:46px;width:calc(100% - 40px);}
+body.view-console #sidebar{width:100%;flex:1;min-height:0;border-left:0;border-top:1px solid var(--panel-border);}

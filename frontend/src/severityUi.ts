@@ -1,5 +1,5 @@
 import { ArcEngine } from "./arcs";
-import { severityColor, severityLabel, severityLevels } from "./types";
+import { paintSeverity, severityLabel, severityLevels } from "./types";
 
 /** Builds the sidebar's severity filter and the map legend from the
  *  configured scale (rather than three hard-coded levels), and keeps the
@@ -32,7 +32,6 @@ export class SeverityUi {
 
   private addRow(id: string): void {
     this.rows.add(id);
-    const color = severityColor(id);
 
     if (this.section) {
       const row = document.createElement("div");
@@ -46,7 +45,7 @@ export class SeverityUi {
       label.htmlFor = box.id;
       const dot = document.createElement("span");
       dot.className = "sev-dot";
-      dot.style.background = color;
+      paintSeverity(dot, id);
       label.append(dot, severityLabel(id));
       const count = document.createElement("span");
       count.className = "sev-count";
@@ -63,7 +62,7 @@ export class SeverityUi {
       item.className = "legend-item";
       const dot = document.createElement("span");
       dot.className = "legend-dot";
-      dot.style.background = color;
+      paintSeverity(dot, id);
       item.append(dot, severityLabel(id));
       this.legend.append(item);
     }

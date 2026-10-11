@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
@@ -8,17 +10,25 @@ router = APIRouter(prefix="/api", tags=["known-good"])
 
 @router.get("/known-good")
 async def get_known_good(response: Response):
-    """The known-good source list the browser mutes against.
+    """The known-good list the browser mutes against (sources, and alert names if any).
 
     Not cached: an edit to known_good.yaml should reach the wall within a
     minute (the page re-reads this on a timer), not whenever a cache expires.
     """
     response.headers["Cache-Control"] = "no-store"
-    return {"entries": known_good.entries(), "editable": _kg_settings()["editable"], **known_good.info()}
+    cfg = _kg_settings()
+    return {
+        "entries": known_good.entries(),
+        "editable": cfg["editable"],
+        "signature_mute": cfg["editable"] and cfg["allow_signature_mute"],
+        **known_good.info(),
+    }
 
 
 class AddBody(BaseModel):
-    ip: str = Field(max_length=64)
+    """Either `ip` (an address or range) or `signature` (an alert name), not both."""
+    ip: Optional[str] = Field(default=None, max_length=64)
+    signature: Optional[str] = Field(default=None, max_length=400)
     note: str = Field(default="", max_length=200)
 
 
@@ -44,17 +54,26 @@ def _who(request: Request) -> str:
 @router.post("/known-good")
 async def add_known_good(body: AddBody, request: Request):
     user = _who(request)
+    if (body.ip is None) == (body.signature is None):
+        raise HTTPException(400, "Give either an IP address or an alert name.")
     try:
-        return known_good.add(body.ip, body.note, user)
+        if body.signature is not None:
+            return known_good.add_signature(body.signature, body.note, user)
+        return known_good.add(body.ip or "", body.note, user)
     except EditRefused as exc:
         raise HTTPException(400, str(exc)) from None
 
 
 @router.delete("/known-good")
-async def remove_known_good(request: Request, cidr: str):
+async def remove_known_good(request: Request, cidr: Optional[str] = None, signature: Optional[str] = None):
     user = _who(request)
+    if (cidr is None) == (signature is None):
+        raise HTTPException(400, "Give either an IP address or an alert name.")
     try:
-        known_good.remove(cidr, user)
+        if signature is not None:
+            known_good.remove_signature(signature, user)
+        else:
+            known_good.remove(cidr or "", user)
     except EditRefused as exc:
         raise HTTPException(400, str(exc)) from None
-    return {"removed": cidr}
+    return {"removed": signature if signature is not None else cidr}

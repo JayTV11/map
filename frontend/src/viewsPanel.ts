@@ -1,4 +1,5 @@
 import { LayoutState } from "./layoutState";
+import { isColorBlind, setColorBlind } from "./types";
 import { PRESETS, ViewState, ViewStore, buildShareUrl } from "./views";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -14,6 +15,10 @@ export interface ViewsPanelDeps {
   applyView(v: ViewState): void;
   getLayout(): LayoutState;
   applyLayout(l: LayoutState): void;
+  openSummary(): void;
+  /** Opens this page again in a second window: the log (with search) or the map alone. */
+  openWindow(mode: "console" | "map"): void;
+  mode: "full" | "console" | "map";
 }
 
 /** The "Views" panel: role starting points, the analyst's own saved views (search + chips + mute + log
@@ -85,6 +90,43 @@ export class ViewsPanel {
     this.linkBox.addEventListener("focus", () => this.linkBox.select());
     this.msg.setAttribute("role", "status");
     this.section.append(share, this.linkBox, this.msg);
+
+    this.section.append(el("div", "vw-label", "Reports"));
+    const rep = el("div", "vw-actions");
+    const sum = el("button", "btn", "Shift summary\u2026");
+    sum.type = "button";
+    sum.title = "What happened over the last few hours, ready to hand over or print";
+    sum.addEventListener("click", () => deps.openSummary());
+    rep.append(sum);
+    this.section.append(rep);
+
+    if (deps.mode === "full") {
+      this.section.append(el("div", "vw-label", "Second monitor"));
+      const win = el("div", "vw-actions");
+      const con = el("button", "btn", "Log in a new window");
+      con.type = "button";
+      con.title = "Opens the event log, details and search in their own window. Pinning an alert in either window pins it in both.";
+      con.addEventListener("click", () => deps.openWindow("console"));
+      const map = el("button", "btn", "Map only in a new window");
+      map.type = "button";
+      map.title = "Opens just the map, for a wall display. Pinning an alert in either window pins it in both.";
+      map.addEventListener("click", () => deps.openWindow("map"));
+      win.append(con, map);
+      this.section.append(win, el("div", "vw-hint", "Only the pinned alert is shared between windows. Search and filters are separate."));
+    }
+
+    this.section.append(el("div", "vw-label", "Display"));
+    const cbLabel = el("label", "vw-check");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = isColorBlind();
+    cb.addEventListener("change", () => {
+      setColorBlind(cb.checked, true);
+      window.location.reload(); // everything already drawn is in the old colours; a reload is the simplest way to be sure none is left
+    });
+    cbLabel.append(cb, el("span", undefined, "Colour-blind-safe colours and shapes"));
+    cbLabel.title = "Replaces red/orange/yellow with colours that stay distinct, and gives each severity its own shape. Reloads the page.";
+    this.section.append(cbLabel);
 
     this.renderSaved();
   }

@@ -1,0 +1,28 @@
+# Plain-English notes on alert types, shown to every analyst in an event's details.
+#
+# Copy this file to  backend/signatures.yaml  and write your own. signatures.yaml is gitignored on purpose:
+# it describes your environment. This example is safe to commit.
+#
+# Each note matches an alert by name (match: ... , * matches anything) or by rule id (id: ...), and says:
+#   what:   what the alert means, in plain words (required)
+#   action: what to check or do (optional)
+#   link:   a runbook or wiki page, http(s) only (optional)
+# The most specific note wins. Changes are picked up within a minute, no restart.
+
+notes:
+  - match: "ET SCAN Nessus*"
+    what: Our vulnerability scanner probing a host. Expected during the weekly scan window.
+    action: Check the scan calendar. If no scan is scheduled, treat it as an unknown scanner and escalate.
+    link: https://wiki.example.com/runbooks/vulnerability-scanning
+
+  - match: "ET EXPLOIT Zero-Day Deserialization Attempt"
+    what: Someone sent a crafted object that tries to run code on the server when it is unpacked.
+    action: Check whether the target is patched, look for follow-up traffic from the same source, and page the on-call if the target is a key system.
+
+  - match: "ET WEB_SERVER SQL Injection*"
+    what: Someone tried to slip database commands into a web request. Common and mostly automated; dangerous only if the application is vulnerable.
+    action: Look at the response (blocked or allowed). If allowed and the target holds sensitive data, escalate.
+
+  - match: "ET POLICY Suspicious User-Agent"
+    what: A web request announced itself with a tool name that is rarely used by real browsers (scanners, scripts).
+    action: Usually low risk on its own. Look for other alerts from the same source.

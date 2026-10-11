@@ -158,3 +158,12 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 *::-webkit-scrollbar-thumb{background:#24364a;border-radius:4px;border:2px solid transparent;background-clip:padding-box;}
 *::-webkit-scrollbar-thumb:hover{background:#36516e;background-clip:padding-box;}
 *::-webkit-scrollbar-corner{background:transparent;}
+
+/* Colour-blind palette: a marker gets a distinct shape per level (types.ts paintSeverity). */
+[data-shape]{border-radius:0 !important;transform:scale(1.35);}
+[data-shape="diamond"]{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);}
+[data-shape="square"]{clip-path:inset(12%);}
+[data-shape="triangle"]{clip-path:polygon(50% 0,100% 100%,0 100%);}
+[data-shape="hexagon"]{clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%);}
+[data-shape="pentagon"]{clip-path:polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%);}
+[data-shape="cross"]{clip-path:polygon(35% 0,65% 0,65% 35%,100% 35%,100% 65%,65% 65%,65% 100%,35% 100%,35% 65%,0 65%,0 35%,35% 35%);}

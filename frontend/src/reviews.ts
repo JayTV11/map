@@ -48,6 +48,8 @@ export class ReviewStore {
   isReviewed(key: string): boolean { return this.map.get(key)?.reviewed === true; }
   hasNote(key: string): boolean { return (this.map.get(key)?.note ?? "") !== ""; }
   get size(): number { return this.map.size; }
+  /** Everything marked or noted, as [group key, review]. */
+  entries(): [string, Review][] { return [...this.map.entries()]; }
 
   set(key: string, patch: { reviewed?: boolean; note?: string }): void {
     const cur = this.map.get(key);

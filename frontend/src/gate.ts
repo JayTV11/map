@@ -7,7 +7,7 @@ export type Verdict = "pass" | "muted" | "filtered";
 /** Decides whether an incoming event is shown, and counts what it hides.
  *
  *  Two independent reasons to hide an event:
- *    - muted:    its SOURCE is on the known-good list and muting is on
+ *    - muted:    its SOURCE (or its signature) is on the known-good list and muting is on
  *    - filtered: it doesn't match the search bar's query
  *  Muted wins when both apply, so the "muted" count is everything the
  *  known-good list removed.
@@ -51,7 +51,7 @@ export class EventGate {
   listChanged(): void { this.onChange?.(); }
 
   verdict(e: TrafficEvent): Verdict {
-    if (this.muteOn && this.knownGood.matches(e.src_ip)) return "muted";
+    if (this.muteOn && this.knownGood.matchesEvent(e)) return "muted";
     if (this.query && !this.query.test(e)) return "filtered";
     return "pass";
   }

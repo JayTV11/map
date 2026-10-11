@@ -1,6 +1,7 @@
 """Scale and home-site settings from config.yaml, with safe defaults."""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .config import config
@@ -39,3 +40,43 @@ def _load_threat(raw: Any) -> dict[str, float] | None:
 scale: SeverityScale = load_scale((config.get("severity") or {}).get("levels"))
 home: dict[str, Any] = _load_home(config.get("home"))
 threat_level: dict[str, float] | None = _load_threat(config.get("threat_level"))
+
+
+# ---- ticket / tool links ----------------------------------------------------------------------
+LINK_PLACEHOLDERS = {"src_ip", "dst_ip", "src_port", "dst_port", "signature", "signature_id", "severity",
+                     "category", "time", "src_asset", "dst_asset", "score"}
+_PH = re.compile(r"\{([a-z_]+)\}")
+
+
+def _load_links(raw: Any) -> list[dict[str, Any]]:
+    """`links:` in config.yaml -> [{label, url, public_only}]. Bad entries are skipped with a reason."""
+    if not raw:
+        return []
+    if not isinstance(raw, list):
+        print("[settings] config.yaml links: must be a list, ignoring")
+        return []
+    out: list[dict[str, Any]] = []
+    for i, item in enumerate(raw[:12]):
+        try:
+            label = str(item["label"]).strip()
+            url = str(item["url"]).strip()
+        except (TypeError, KeyError):
+            print(f"[settings] config.yaml links[{i}]: needs label and url, skipped")
+            continue
+        if not label or len(label) > 40:
+            print(f"[settings] config.yaml links[{i}]: label must be 1-40 characters, skipped")
+            continue
+        if not url.lower().startswith(("http://", "https://")):
+            print(f"[settings] config.yaml links[{i}] ({label}): url must start with http:// or https://, skipped")
+            continue
+        unknown = sorted(set(_PH.findall(url)) - LINK_PLACEHOLDERS)
+        if unknown:
+            print(f"[settings] config.yaml links[{i}] ({label}): unknown placeholder {{{unknown[0]}}}, skipped")
+            continue
+        out.append({"label": label, "url": url, "public_only": bool(item.get("public_only", False))})
+    if len(raw) > 12:
+        print("[settings] config.yaml links: only the first 12 are used")
+    return out
+
+
+links: list[dict[str, Any]] = _load_links(config.get("links"))

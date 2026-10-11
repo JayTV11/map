@@ -3,7 +3,9 @@
  *  A modal (not inline) so the detail panel redrawing underneath, as repeats arrive, can't wipe it. */
 
 export interface MuteRequest {
+  /** The address, or (for kind "signature") the signature name. */
   ip: string;
+  kind?: "source" | "signature";
   /** A name for the source, when it is a known system, to pre-fill the note. */
   defaultNote: string;
   /** Plain-text warnings (e.g. "this event is Critical"), shown above the buttons. */
@@ -28,25 +30,30 @@ export function openMuteConfirm(req: MuteRequest): void {
   dialog.setAttribute("aria-modal", "true");
   dialog.setAttribute("aria-label", "Mute this source");
 
-  const title = el("h2", undefined, `Mute ${req.ip}?`);
-  const what = el("p", "mc-text",
-    "Its events will be hidden from every analyst's screen and from the wall: not drawn on the map, not in the log, not counted. " +
-    "The “muted” badge still counts them, and Elastic is untouched. You can undo this in the Known-Good Sources panel.");
+  const isSig = req.kind === "signature";
+  dialog.setAttribute("aria-label", isSig ? "Mute this signature" : "Mute this source");
+  const title = el("h2", undefined, isSig ? `Mute every “${req.ip}” alert?` : `Mute ${req.ip}?`);
+  const what = el("p", "mc-text", isSig
+    ? "Every event with this signature, from ANY source to ANY target, will be hidden from every analyst's screen and from the wall: " +
+      "not drawn, not in the log, not counted. That includes a real attack that happens to trigger it. " +
+      "The “muted” badge still counts them, and Elastic is untouched. You can undo this in the Known-Good panel."
+    : "Its events will be hidden from every analyst's screen and from the wall: not drawn on the map, not in the log, not counted. " +
+      "The “muted” badge still counts them, and Elastic is untouched. You can undo this in the Known-Good Sources panel.");
   const warn = el("div", "mc-warn");
   for (const w of req.warnings) warn.append(el("div", undefined, w));
   warn.hidden = req.warnings.length === 0;
 
-  const label = el("label", "mc-label", "What is it? (so the next analyst knows)");
+  const label = el("label", "mc-label", isSig ? "Why is it safe to hide? (required, shown to the next analyst)" : "What is it? (so the next analyst knows)");
   const note = el("input", "mc-note");
   note.type = "text";
   note.maxLength = 120;
   note.value = req.defaultNote;
-  note.placeholder = "e.g. Nessus scanner, backup server";
+  note.placeholder = isSig ? "e.g. Noisy rule, tuned in Suricata on the 12th" : "e.g. Nessus scanner, backup server";
   label.append(note);
 
   const msg = el("div", "mc-msg");
   msg.setAttribute("role", "alert");
-  const ok = el("button", "btn mc-ok", "Mute this source");
+  const ok = el("button", "btn mc-ok", isSig ? "Mute this signature" : "Mute this source");
   ok.type = "button";
   const cancel = el("button", "btn mc-cancel", "Cancel");
   cancel.type = "button";
@@ -64,6 +71,7 @@ export function openMuteConfirm(req: MuteRequest): void {
     ev.stopPropagation(); // typing here must not trigger the page's single-key shortcuts
   });
   ok.addEventListener("click", async () => {
+    if (isSig && note.value.trim().length < 5) { msg.textContent = "Please give a reason (at least 5 characters)."; note.focus(); return; }
     ok.disabled = true;
     msg.textContent = "";
     const err = await req.submit(note.value.trim());

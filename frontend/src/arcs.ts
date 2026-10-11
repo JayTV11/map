@@ -1,11 +1,13 @@
 import { computeArcGeometry } from "./arcGeometry";
 import { DrawnArc, hitTest } from "./hitTest";
-import { isKeyAsset, severityColor, TrafficEvent } from "./types";
+import { isKeyAsset, severityColor, severityShape, SeverityShape, TrafficEvent } from "./types";
 
 interface ActiveArc {
   x1: number; y1: number; x2: number; y2: number;
   cx: number; cy: number;
   color: string;
+  /** Colour-blind palette only: the head of the arc is drawn in this shape instead of a round dot. */
+  shape: SeverityShape;
   start: number;
   duration: number;
   weight: number;
@@ -17,6 +19,32 @@ interface Ping {
   x: number; y: number; color: string; start: number; duration: number;
   weight: number;
   key: boolean;
+}
+
+/** Traces a marker outline (colour-blind palette). Each is easy to tell from the others even when tiny. */
+function shapePath(ctx: CanvasRenderingContext2D, shape: SeverityShape, x: number, y: number, r: number): void {
+  const poly = (n: number, rot: number, rr = r): void => {
+    for (let i = 0; i < n; i++) {
+      const a = rot + (i * 2 * Math.PI) / n;
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  };
+  switch (shape) {
+    case "diamond": poly(4, 0, r * 1.25); break;
+    case "square": poly(4, Math.PI / 4, r * 1.2); break;
+    case "triangle": poly(3, -Math.PI / 2, r * 1.3); break;
+    case "hexagon": poly(6, 0, r * 1.1); break;
+    case "pentagon": poly(5, -Math.PI / 2, r * 1.15); break;
+    case "cross": {
+      const t = r * 0.45, l = r * 1.2;
+      ctx.rect(x - l, y - t, l * 2, t * 2);
+      ctx.rect(x - t, y - l, t * 2, l * 2);
+      break;
+    }
+    default: ctx.arc(x, y, r, 0, Math.PI * 2);
+  }
 }
 
 // How much dimmer regular live traffic gets drawn while an event is
@@ -112,6 +140,7 @@ export class ArcEngine {
     this.active.push({
       ...geo,
       color: severityColor(event.severity),
+      shape: severityShape(event.severity),
       start: performance.now(),
       duration: 1100 + Math.random() * 900,
       weight,
@@ -131,7 +160,7 @@ export class ArcEngine {
     ];
   }
 
-  private glowDot(x: number, y: number, r: number, color: string, alpha: number): void {
+  private glowDot(x: number, y: number, r: number, color: string, alpha: number, shape: SeverityShape = "circle"): void {
     const ctx = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -140,7 +169,8 @@ export class ArcEngine {
     ctx.shadowColor = color;
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    if (shape === "circle") ctx.arc(x, y, r, 0, Math.PI * 2);
+    else shapePath(ctx, shape, x, y, r * 1.1);
     ctx.fill();
     ctx.restore();
   }
@@ -156,6 +186,7 @@ export class ArcEngine {
     const ctx = this.ctx;
     const g = computeArcGeometry(this.pinned, w, h);
     const color = severityColor(this.pinned.severity);
+    const shape = severityShape(this.pinned.severity);
     const pulse = 0.5 + 0.5 * Math.sin(now / 400);
 
     ctx.save();
@@ -169,8 +200,8 @@ export class ArcEngine {
     ctx.stroke();
     ctx.restore();
 
-    this.glowDot(g.x1, g.y1, 4 + pulse * 1.5, color, 0.9);
-    this.glowDot(g.x2, g.y2, 4 + pulse * 1.5, color, 0.9);
+    this.glowDot(g.x1, g.y1, 4 + pulse * 1.5, color, 0.9, shape);
+    this.glowDot(g.x2, g.y2, 4 + pulse * 1.5, color, 0.9, shape);
 
     ctx.save();
     ctx.globalAlpha = 0.3 + 0.25 * pulse;
@@ -243,7 +274,7 @@ export class ArcEngine {
         const tt = Math.max(0, t - k * 0.02);
         const [px, py] = this.arcPoint(a, tt);
         const base = k === 0 ? 3.2 : 2.0;
-        this.glowDot(px, py, base * (1 + extra * 0.2), a.color, (1 - k * 0.16) * dim);
+        this.glowDot(px, py, base * (1 + extra * 0.2) * (k === 0 && a.shape !== "circle" ? 1.35 : 1), a.color, (1 - k * 0.16) * dim, k === 0 ? a.shape : "circle");
       }
       if (t < 0.08) {
         this.glowDot(a.x1, a.y1, 3 + (0.08 - t) * 40, a.color, (0.08 - t) * 6 * dim);

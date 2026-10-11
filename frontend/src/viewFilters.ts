@@ -2,6 +2,7 @@ import { ChipBar, combineQueries } from "./filterChips";
 import { EventGate } from "./gate";
 import { BUILT_IN_FIELDS, tryCompile } from "./kql";
 import { KnownGoodList } from "./knownGood";
+import { PivotField, pivotClause, pivotQuery } from "./pivot";
 
 const EXAMPLES: { q: string; what: string }[] = [
   { q: "severity:(critical or major)", what: "only the worst levels" },
@@ -172,6 +173,12 @@ export class ViewFilters {
     );
   }
 
+  /** Click-to-pivot from the details: filter to this value (replaces the search), or AND it onto the search (Shift-click). */
+  pivot(field: PivotField, value: string, and: boolean): void {
+    this.setText(pivotQuery(this.input.value, pivotClause(field, value), and));
+    this.input.scrollIntoView({ block: "nearest" });
+  }
+
   private setText(text: string): void {
     this.input.value = text;
     this.clearBtn.hidden = text === "";
@@ -306,10 +313,13 @@ export class ViewFilters {
     const sig = JSON.stringify([entries, editable]);
     if (sig === this.listSig) return; // rebuilding every second would eat what is being typed and the hover
     this.listSig = sig;
-    this.listSummary.textContent = `Sources on the list (${entries.length})`;
+    this.listSummary.textContent = `On the list (${entries.length})`;
     const rows = entries.slice(0, 200).map((en) => {
       const row = el("div", "kg-row");
-      const name = el("span", "kg-cidr", en.cidr);
+      const isSig = en.kind === "signature";
+      const label = isSig ? en.signature ?? "" : en.cidr ?? "";
+      const name = el("span", "kg-cidr", isSig ? `\u{1F4DB} ${label}` : label);
+      name.title = isSig ? "A signature: every event with this name is muted, from any source" : label;
       const note = el("span", "kg-notetext", en.note || "\u2014");
       note.title = en.note;
       const where = el("span", "kg-src", en.source === "analyst" ? `added${en.added_by ? ` by ${en.added_by}` : ""}` : "known_good.yaml");
@@ -319,9 +329,9 @@ export class ViewFilters {
         const x = el("button", "kg-del", "\u00d7");
         x.type = "button";
         x.title = "Remove from the list (its traffic will show again)";
-        x.setAttribute("aria-label", `Remove ${en.cidr} from the list`);
+        x.setAttribute("aria-label", `Remove ${label} from the list`);
         x.addEventListener("click", async () => {
-          const err = await this.knownGood.remove(en.cidr);
+          const err = isSig ? await this.knownGood.removeSignature(label) : await this.knownGood.remove(label);
           if (err) { this.addMsg.textContent = err; this.addMsg.classList.add("bad"); this.listDetails.open = true; }
         });
         row.append(x);
@@ -352,7 +362,7 @@ export class ViewFilters {
       const state = this.gate.muteEnabled
         ? `${m.toLocaleString()} event${m === 1 ? "" : "s"} muted this session`
         : "Muting is off \u2014 their traffic is shown";
-      this.muteInfoLine.textContent = `${n} source${n === 1 ? "" : "s"} listed \u00b7 ${state}`;
+      this.muteInfoLine.textContent = `${n} entr${n === 1 ? "y" : "ies"} listed \u00b7 ${state}`;
     }
     const err = this.knownGood.serverError;
     this.muteWarn1.textContent = err ? `known_good.yaml: ${err}` : "";
@@ -367,8 +377,8 @@ export class ViewFilters {
     if (showMute) {
       this.muteChip.textContent = `\u{1F507} ${this.gate.mutedCount.toLocaleString()} muted`;
       const n = this.knownGood.size;
-      const notes = this.knownGood.entries.filter((e) => e.note).slice(0, 8).map((e) => `${e.cidr} \u2014 ${e.note}`);
-      this.muteChip.title = `Hiding traffic from ${n} known-good source${n === 1 ? "" : "s"}.` +
+      const notes = this.knownGood.entries.filter((e) => e.note).slice(0, 8).map((e) => `${e.signature ?? e.cidr} \u2014 ${e.note}`);
+      this.muteChip.title = `Hiding traffic from ${n} known-good entr${n === 1 ? "y" : "ies"}.` +
         (notes.length ? `\n${notes.join("\n")}` : "");
     }
 

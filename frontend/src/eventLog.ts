@@ -1,5 +1,5 @@
 import { EventGroup } from "./aggregator";
-import { AssetRef, isKeyAsset, severityColor, severityLabel } from "./types";
+import { AssetRef, isKeyAsset, paintSeverity, severityLabel } from "./types";
 
 export const MAX_ENTRIES = 60;
 
@@ -74,7 +74,7 @@ export function appendLogEntry(
   }
 
   const update = (g: EventGroup): void => {
-    dot.style.background = severityColor(g.severity);
+    paintSeverity(dot, g.severity);
     sevLabel.textContent = severityLabel(g.severity);
     const a = g.event.anomaly;
     an.hidden = !a || a.score < 40;
