@@ -31,6 +31,11 @@ const DIM_FACTOR = 0.22;
 // to finish fading) the overlay is wiped clean.
 const IDLE_CLEAR_FRAMES = 40;
 
+// Zoomed in, the map is magnified but arcs are drawn at screen resolution, so they stay sharp.
+// Sizes (dots, line widths, rings) grow more slowly than the map itself: with the map at 8x, an
+// arc 8x thicker would be a smear. 0 = sizes never grow, 1 = they grow with the map.
+const SIZE_GROWTH = 0.5;
+
 export class ArcEngine {
   private ctx: CanvasRenderingContext2D;
   private active: ActiveArc[] = [];
@@ -40,10 +45,15 @@ export class ArcEngine {
   private pinned: TrafficEvent | null = null;
   private idleFrames = 0;
   private drawn: DrawnArc[] = []; // recent arcs, for click-to-pin (hitTest.ts)
+  // The map camera (see mapZoom.ts), read from the viewport's CSS transform every frame so it also follows
+  // the wall tour's animated glides. Arcs are drawn through it, at the screen's own resolution.
+  private cam = { s: 1, tx: 0, ty: 0 };
+  private dpr = 1;
+  private k = 1; // size factor for the current zoom (see SIZE_GROWTH)
 
   onActiveCountChange?: (n: number) => void;
 
-  constructor(private canvas: HTMLCanvasElement, private wrap: HTMLElement) {
+  constructor(private canvas: HTMLCanvasElement, private wrap: HTMLElement, private viewport: HTMLElement | null = null) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("2d canvas context unavailable");
     this.ctx = ctx;
@@ -70,11 +80,22 @@ export class ArcEngine {
 
   resize(): void {
     const dpr = window.devicePixelRatio || 1;
+    this.dpr = dpr;
     this.canvas.width = this.wrap.clientWidth * dpr;
     this.canvas.height = this.wrap.clientHeight * dpr;
     this.canvas.style.width = this.wrap.clientWidth + "px";
     this.canvas.style.height = this.wrap.clientHeight + "px";
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  /** Reads the camera from the map viewport. True when it moved since the last frame. */
+  private readCamera(): boolean {
+    if (!this.viewport) return false;
+    const m = new DOMMatrix(getComputedStyle(this.viewport).transform);
+    const s = m.a > 0 ? m.a : 1;
+    const moved = Math.abs(s - this.cam.s) > 1e-4 || Math.abs(m.e - this.cam.tx) > 0.01 || Math.abs(m.f - this.cam.ty) > 0.01;
+    this.cam = { s, tx: m.e, ty: m.f };
+    this.k = Math.pow(s, SIZE_GROWTH - 1); // on-screen size = world size x s x k = size x s^SIZE_GROWTH
+    return moved;
   }
 
   /** `weight` is 1 for a single plain event; the aggregator passes a
@@ -113,7 +134,8 @@ export class ArcEngine {
     const ctx = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowBlur = r * 4;
+    r *= this.k;
+    ctx.shadowBlur = r * 4 * this.cam.s * this.dpr; // shadows ignore the transform, so scale the blur by hand
     ctx.shadowColor = color;
     ctx.fillStyle = color;
     ctx.beginPath();
@@ -138,8 +160,8 @@ export class ArcEngine {
     ctx.save();
     ctx.globalAlpha = 0.55;
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.6;
-    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = 1.6 * this.k;
+    ctx.setLineDash([5 * this.k, 5 * this.k]);
     ctx.beginPath();
     ctx.moveTo(g.x1, g.y1);
     ctx.quadraticCurveTo(g.cx, g.cy, g.x2, g.y2);
@@ -152,9 +174,9 @@ export class ArcEngine {
     ctx.save();
     ctx.globalAlpha = 0.3 + 0.25 * pulse;
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.5 * this.k;
     ctx.beginPath();
-    ctx.arc(g.x2, g.y2, 6 + pulse * 4, 0, Math.PI * 2);
+    ctx.arc(g.x2, g.y2, (6 + pulse * 4) * this.k, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -171,16 +193,29 @@ export class ArcEngine {
     // transparent overlay canvas, NOT a plain fillRect (a plain fillRect
     // accumulates toward solid black over many frames -- see the mockup's
     // notes on why this specific technique is used).
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = "rgba(0,0,0,0.22)";
-    ctx.fillRect(0, 0, w, h);
-    ctx.globalCompositeOperation = "source-over";
+    // Fading and wiping work on the whole canvas, so they run untransformed; drawing then goes
+    // through the camera. When the camera moves the old trails would hang in the wrong place on
+    // screen, so they are wiped (arcs in flight redraw at once).
+    const cameraMoved = this.readCamera();
+    const k = this.k;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (cameraMoved) {
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    } else {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0,0,0,0.22)";
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.globalCompositeOperation = "source-over";
+    }
 
     if (this.active.length > 0 || this.pings.length > 0) {
       this.idleFrames = 0;
     } else if (++this.idleFrames === IDLE_CLEAR_FRAMES) {
-      ctx.clearRect(0, 0, w, h); // wipe the un-fadeable residue (see IDLE_CLEAR_FRAMES)
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); // wipe the un-fadeable residue (see IDLE_CLEAR_FRAMES)
     }
+    const { s: cs, tx, ty } = this.cam;
+    const d = this.dpr;
+    ctx.setTransform(d * cs, 0, 0, d * cs, d * tx, d * ty);
 
     for (let i = this.active.length - 1; i >= 0; i--) {
       const a = this.active[i];
@@ -196,7 +231,7 @@ export class ArcEngine {
       ctx.save();
       ctx.globalAlpha = Math.min(0.05 * (1 + extra * 0.8), 0.3) * dim;
       ctx.strokeStyle = a.color;
-      ctx.lineWidth = 1 + extra * 0.6;
+      ctx.lineWidth = (1 + extra * 0.6) * k;
       ctx.beginPath();
       ctx.moveTo(a.x1, a.y1);
       ctx.quadraticCurveTo(a.cx, a.cy, a.x2, a.y2);
@@ -222,9 +257,9 @@ export class ArcEngine {
       ctx.save();
       ctx.globalAlpha = (1 - pt) * dim;
       ctx.strokeStyle = p.color;
-      ctx.lineWidth = 2 + extra * 0.4;
+      ctx.lineWidth = (2 + extra * 0.4) * k;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 3 + pt * 22 * (1 + extra * 0.15), 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, (3 + pt * 22 * (1 + extra * 0.15)) * k, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
       this.glowDot(p.x, p.y, 2.5 * (1 + extra * 0.15), p.color, (1 - pt) * dim);
@@ -238,9 +273,9 @@ export class ArcEngine {
           ctx.save();
           ctx.globalAlpha = (1 - rt) * 0.9 * dim;
           ctx.strokeStyle = p.color;
-          ctx.lineWidth = 3.2;
+          ctx.lineWidth = 3.2 * k;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, 6 + rt * reach, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, (6 + rt * reach) * k, 0, Math.PI * 2);
           ctx.stroke();
           ctx.restore();
         }

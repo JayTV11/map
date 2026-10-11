@@ -5,7 +5,7 @@
 export function wireMapPick(
   wrap: HTMLElement,
   viewport: HTMLElement,
-  canvas: HTMLCanvasElement,
+  _canvas: HTMLCanvasElement,
   onPick: (x: number, y: number) => void,
 ): void {
   let down: { x: number; y: number; t: number; onMap: boolean } | null = null;
@@ -20,7 +20,8 @@ export function wireMapPick(
     if (!d || !d.onMap) return;
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5 || Date.now() - d.t > 600) return;
     // getBoundingClientRect includes the CSS zoom transform, so rect.width / clientWidth is the zoom factor.
-    const rect = canvas.getBoundingClientRect();
+    // (The viewport, not the canvas: the canvas is drawn at screen size and is not itself zoomed.)
+    const rect = viewport.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     const x = ((e.clientX - rect.left) / rect.width) * wrap.clientWidth;
     const y = ((e.clientY - rect.top) / rect.height) * wrap.clientHeight;

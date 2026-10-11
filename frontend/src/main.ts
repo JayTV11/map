@@ -55,7 +55,7 @@ async function start(): Promise<void> {
   const wrap = document.getElementById("map-wrap")!;
   const mapViewport = document.getElementById("map-viewport")!;
   const canvas = document.getElementById("fx") as HTMLCanvasElement;
-  const engine = new ArcEngine(canvas, wrap);
+  const engine = new ArcEngine(canvas, wrap, mapViewport);
   const severityUi = new SeverityUi(engine);
   wireControls(engine, (file) => void openIngestDialog(file, { onLoaded: () => void monitor.refresh() }));
   const zoom = wireMapZoom(mapViewport, wrap);
