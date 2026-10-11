@@ -33,7 +33,12 @@ export interface LogRow {
  *  know what "selected" means, that's FocusController's job (see
  *  focus.ts). We just report the interaction and hand back the element so
  *  the caller can toggle a `.selected` class on it. */
-export function appendLogEntry(list: HTMLElement, group: EventGroup, onSelect: (el: HTMLElement) => void): LogRow {
+export function appendLogEntry(
+  list: HTMLElement,
+  group: EventGroup,
+  onSelect: (el: HTMLElement) => void,
+  onExpand?: (el: HTMLElement) => void,
+): LogRow {
   const el = document.createElement("div");
   el.className = "log-entry";
   el.tabIndex = 0;
@@ -51,6 +56,18 @@ export function appendLogEntry(list: HTMLElement, group: EventGroup, onSelect: (
   el.append(dot, ips);
   if (dirTag) el.append(dirTag);
   el.append(an, badge, sevLabel);
+  if (onExpand) {
+    const expand = document.createElement("button");
+    expand.type = "button";
+    expand.className = "log-expand";
+    expand.textContent = "\u2922";
+    expand.title = "Open full details in a large window";
+    expand.setAttribute("aria-label", "Open full details in a large window");
+    // Its own click: must not also toggle the row's pin.
+    expand.addEventListener("click", (ev) => { ev.stopPropagation(); onExpand(el); });
+    expand.addEventListener("keydown", (ev) => ev.stopPropagation());
+    el.append(expand);
+  }
 
   const update = (g: EventGroup): void => {
     dot.style.background = severityColor(g.severity);
@@ -79,9 +96,11 @@ export function appendLogEntry(list: HTMLElement, group: EventGroup, onSelect: (
       onSelect(el);
     }
   });
-  list.appendChild(el);
-  while (list.children.length > MAX_ENTRIES) list.removeChild(list.firstChild!);
-  list.scrollTop = list.scrollHeight;
+  // Newest first, at the top. The list is a normal top-to-bottom column, so the
+  // analyst's scroll position is theirs: the browser keeps the view steady while
+  // rows are added above it, and a list resting at the top simply shows the newest.
+  list.insertBefore(el, list.firstChild);
+  while (list.children.length > MAX_ENTRIES) list.removeChild(list.lastChild!);
 
   return { el, update };
 }

@@ -59,6 +59,12 @@ export class FocusController {
     this.banner.hidden = false;
   }
 
+  /** The row's expand button: pin the group if it isn't already, then pop the details out large. */
+  open(group: EventGroup, el: HTMLElement): void {
+    if (this.selectedId !== group.id) this.toggle(group, el);
+    this.detail.expand();
+  }
+
   /** Re-renders the detail panel if `group` is the pinned one. Called
    *  whenever the group receives another event. */
   refresh(group: EventGroup): void {

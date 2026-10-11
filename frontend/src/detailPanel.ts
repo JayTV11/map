@@ -43,12 +43,72 @@ export class DetailPanel {
   private section = document.getElementById("detail-section")!;
   private body = document.getElementById("detail-body")!;
   onClose?: () => void;
+  private current: { e: TrafficEvent; summary?: GroupSummary } | null = null;
+  private overlay: HTMLElement | null = null;
+  private lastFocus: HTMLElement | null = null;
 
   constructor() {
     document.getElementById("detail-close")!.addEventListener("click", () => this.hide());
+    document.getElementById("detail-expand")!.addEventListener("click", () => this.expand());
+    // Capture phase: with the large window open, Esc closes just that window
+    // (not also the panel and the pin behind it).
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !this.section.hidden) this.hide();
-    });
+      if (e.key !== "Escape") return;
+      if (this.overlay) { e.stopPropagation(); e.preventDefault(); this.collapse(); return; }
+      if (!this.section.hidden) this.hide();
+    }, true);
+  }
+
+  get isExpanded(): boolean { return this.overlay !== null; }
+
+  /** Opens the pinned event in a large window with every field, the extra source
+   *  fields and the raw record. Stays in step as more repeats join the group. */
+  expand(): void {
+    if (!this.current || this.overlay) return;
+    this.lastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const overlay = document.createElement("div");
+    overlay.className = "popout-overlay";
+    overlay.addEventListener("mousedown", (ev) => { if (ev.target === overlay) this.collapse(); });
+    const dialog = document.createElement("div");
+    dialog.className = "popout-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-label", "Alert details");
+    overlay.append(dialog);
+    document.body.append(overlay);
+    this.overlay = overlay;
+    this.renderPopout();
+    dialog.querySelector<HTMLElement>(".popout-x")?.focus();
+  }
+
+  collapse(): void {
+    this.overlay?.remove();
+    this.overlay = null;
+    this.lastFocus?.focus?.();
+    this.lastFocus = null;
+  }
+
+  private renderPopout(): void {
+    const dialog = this.overlay?.querySelector<HTMLElement>(".popout-dialog");
+    if (!dialog || !this.current) return;
+    const { e, summary } = this.current;
+    const head = document.createElement("div");
+    head.className = "popout-head";
+    const title = document.createElement("h2");
+    title.textContent = "Alert Detail";
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "popout-x";
+    x.setAttribute("aria-label", "Close");
+    x.textContent = "\u00d7";
+    x.addEventListener("click", () => this.collapse());
+    head.append(title, x);
+    const body = document.createElement("div");
+    body.className = "popout-body";
+    const scroll = dialog.querySelector<HTMLElement>(".popout-body")?.scrollTop ?? 0;
+    this.render(body, e, summary, true);
+    dialog.replaceChildren(head, body);
+    body.scrollTop = scroll;
   }
 
   /** Hides the panel. `notify` is false when the caller (FocusController)
@@ -58,6 +118,8 @@ export class DetailPanel {
   hide(notify = true): void {
     const wasOpen = !this.section.hidden;
     this.section.hidden = true;
+    this.current = null;
+    this.collapse();
     if (notify && wasOpen) this.onClose?.();
   }
 
@@ -82,9 +144,19 @@ export class DetailPanel {
    *  (see aggregator.ts); it adds the count, first/last seen and the
    *  distinct destination ports hit. */
   show(e: TrafficEvent, summary?: GroupSummary): void {
+    const wasHidden = this.section.hidden;
+    this.current = { e, summary };
     this.section.hidden = false;
-    this.section.scrollIntoView({ block: "nearest" }); // the column may be scrolled; an opened detail must be seen
-    this.body.replaceChildren();
+    if (wasHidden) this.section.scrollIntoView({ block: "nearest" }); // the column may be scrolled; an opened detail must be seen
+    this.render(this.body, e, summary, false);
+    if (this.overlay) this.renderPopout();
+  }
+
+  /** Draws one event into `target`. `large` adds the full source record for the pop-out window. */
+  private render(target: HTMLElement, e: TrafficEvent, summary: GroupSummary | undefined, large: boolean): void {
+    target.replaceChildren();
+    const body = target;
+    target.classList.toggle("detail-large", large);
 
     const sig = document.createElement("div");
     sig.className = "detail-sig";
@@ -93,8 +165,8 @@ export class DetailPanel {
     badge.className = "detail-badge";
     badge.textContent = severityLabel(e.severity);
     badge.style.background = severityColor(e.severity);
-    this.body.append(badge, sig);
-    if (e.anomaly) this.body.append(this.anomalyBlock(e.anomaly));
+    body.append(badge, sig);
+    if (e.anomaly) body.append(this.anomalyBlock(e.anomaly));
 
     const grouped = summary !== undefined && summary.count > 1;
     const rows: [string, string | null][] = [
@@ -124,13 +196,14 @@ export class DetailPanel {
       const dd = document.createElement("dd"); dd.textContent = v;
       dl.append(dt, dd);
     }
-    this.body.append(dl);
+    body.append(dl);
 
     // Anything in the source data that didn't map to a field above (collapsed by default).
     const extraKeys = Object.keys(e.extra ?? {});
     if (extraKeys.length > 0) {
       const details = document.createElement("details");
       details.className = "detail-extra";
+      details.open = large;
       const summaryEl = document.createElement("summary");
       summaryEl.textContent = `Other fields in the data (${extraKeys.length})`;
       const extraGrid = document.createElement("dl");
@@ -141,7 +214,7 @@ export class DetailPanel {
         extraGrid.append(dt, dd);
       }
       details.append(summaryEl, extraGrid);
-      this.body.append(details);
+      body.append(details);
     }
 
     const actions = document.createElement("div");
@@ -186,6 +259,28 @@ export class DetailPanel {
       });
       actions.append(kg);
     }
-    this.body.append(actions);
+    body.append(actions);
+
+    if (large) {
+      const raw = document.createElement("details");
+      raw.className = "detail-extra detail-raw";
+      raw.open = true;
+      const rs = document.createElement("summary");
+      rs.textContent = "Raw event (JSON)";
+      const pre = document.createElement("pre");
+      const json = JSON.stringify(e, null, 2);
+      pre.textContent = json;
+      const rc = document.createElement("button");
+      rc.type = "button";
+      rc.className = "btn";
+      rc.textContent = "Copy JSON";
+      rc.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(json); rc.textContent = "Copied"; }
+        catch { rc.textContent = "Copy failed"; }
+        setTimeout(() => { rc.textContent = "Copy JSON"; }, 1200);
+      });
+      raw.append(rs, pre, rc);
+      body.append(raw);
+    }
   }
 }

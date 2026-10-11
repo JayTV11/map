@@ -6,6 +6,7 @@ import "./assets.css";
 import "./ingest.css";
 import "./filters.css";
 import "./anomaly.css";
+import "./popout.css";
 import { renderWorldMap } from "./map";
 import { ArcEngine } from "./arcs";
 import { connectTrafficSocket } from "./wsClient";
@@ -174,7 +175,7 @@ async function start(): Promise<void> {
     if (arc && !tools.replaying) engine.spawn(arc.event, arc.weight);
 
     if (isNew) {
-      logRows.set(group.id, appendLogEntry(logList, group, (el) => focus.toggle(group, el)));
+      logRows.set(group.id, appendLogEntry(logList, group, (el) => focus.toggle(group, el), (el) => focus.open(group, el)));
       logGroups.set(group.id, group);
     } else {
       logRows.get(group.id)?.update(group);
