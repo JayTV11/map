@@ -7,6 +7,10 @@ import { ipInNet, IpNet, parseNet } from "./ipmatch";
 export interface KnownGoodEntry {
   cidr: string;
   note: string;
+  /** "file" = known_good.yaml (admin); "analyst" = added from the screen. */
+  source?: "file" | "analyst";
+  added_by?: string;
+  added_at?: string;
 }
 
 interface Parsed extends KnownGoodEntry {
@@ -34,7 +38,10 @@ export class KnownGoodList implements KnownGoodMatcher {
   onChange?: () => void;
 
   get size(): number { return this.list.length; }
-  get entries(): readonly KnownGoodEntry[] { return this.list.map(({ cidr, note }) => ({ cidr, note })); }
+  /** True when an admin has turned on editing from the screen (config.yaml known_good: editable). */
+  editable = false;
+
+  get entries(): readonly KnownGoodEntry[] { return this.list.map(({ net: _net, ...entry }) => entry); }
 
   find(ip: string | null | undefined): KnownGoodEntry | null {
     if (!ip || this.list.length === 0) return null;
@@ -55,9 +62,9 @@ export class KnownGoodList implements KnownGoodMatcher {
     const parsed: Parsed[] = [];
     for (const e of entries) {
       const net = parseNet(e.cidr);
-      if (net) parsed.push({ cidr: e.cidr, note: e.note ?? "", net });
+      if (net) parsed.push({ cidr: e.cidr, note: e.note ?? "", source: e.source, added_by: e.added_by, added_at: e.added_at, net });
     }
-    const sig = JSON.stringify([parsed.map((p) => [p.cidr, p.note]), serverError]);
+    const sig = JSON.stringify([parsed.map((p) => [p.cidr, p.note, p.source, p.added_by]), serverError, this.editable]);
     this.list = parsed;
     this.cache.clear();
     this.serverError = serverError;
@@ -79,8 +86,9 @@ export class KnownGoodList implements KnownGoodMatcher {
         return;
       }
       if (!resp.ok) throw new Error(String(resp.status));
-      const body = (await resp.json()) as { entries?: KnownGoodEntry[]; error?: string | null };
+      const body = (await resp.json()) as { entries?: KnownGoodEntry[]; error?: string | null; editable?: boolean };
       this.loadFailed = false;
+      this.editable = body.editable === true;
       this.setEntries(Array.isArray(body.entries) ? body.entries : [], body.error ?? null);
     } catch {
       if (!this.loadFailed) {
@@ -90,6 +98,34 @@ export class KnownGoodList implements KnownGoodMatcher {
       }
     } finally {
       window.clearTimeout(timer);
+    }
+  }
+
+  /** Adds a source from the screen. Resolves to an error message the analyst can read, or null on success. */
+  async add(ip: string, note: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
+    return this.edit(fetchImpl, "/api/known-good", { method: "POST", body: JSON.stringify({ ip, note }), headers: { "content-type": "application/json" } });
+  }
+
+  async remove(cidr: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<string | null> {
+    return this.edit(fetchImpl, `/api/known-good?cidr=${encodeURIComponent(cidr)}`, { method: "DELETE" });
+  }
+
+  private async edit(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<string | null> {
+    try {
+      // The custom header is what the server checks to know the request came from this page.
+      const resp = await fetchImpl(url, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), "x-sightline-edit": "1" } });
+      if (!resp.ok) {
+        let detail = `The server said ${resp.status}.`;
+        try {
+          const j = (await resp.json()) as { detail?: unknown };
+          if (typeof j.detail === "string") detail = j.detail;
+        } catch { /* not JSON: keep the generic message */ }
+        return detail;
+      }
+      await this.refresh(fetchImpl); // the change is live for this screen at once; other screens catch up within a minute
+      return null;
+    } catch {
+      return "Couldn't reach the server. Nothing was changed.";
     }
   }
 

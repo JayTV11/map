@@ -83,3 +83,16 @@ home:
 #   min_events: 1000
 #   min_hours: 24
 #   path: data/anomaly.db
+
+# Let analysts add and remove known-good sources from the screen (the Known-Good Sources panel and the
+# "Mute this source" button in an event's details). OFF by default.
+# Entries added this way are kept in data/known_good_added.json (never in known_good.yaml, which is only
+# ever hand-edited), and each change is appended to data/known_good_audit.log with who made it.
+# Muting hides a source's events from EVERY analyst's screen, so turn this on once SSO is in place and
+# set user_header to the header your proxy sets with the signed-in user's name or email. With a header
+# configured, requests without it are refused.
+# known_good:
+#   editable: true
+#   user_header: X-Forwarded-User
+#   min_prefix_v4: 16     # the widest range (smallest /N) an analyst may mute; wider ones go in known_good.yaml
+#   min_prefix_v6: 48

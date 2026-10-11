@@ -249,9 +249,86 @@ export class ViewFilters {
     this.muteBox.addEventListener("change", () => this.setMute(this.muteBox.checked));
 
     this.muteInfo.append(this.muteInfoLine, this.muteWarn1, this.muteWarn2);
-    section.append(row, this.muteInfo);
+    section.append(row, this.muteInfo, this.buildSourceList());
     if (anchor) anchor.before(section);
     else document.body.append(section);
+  }
+
+  // The list of muted sources, with add / remove when an admin has allowed editing from the screen.
+  private listBox = el("div", "kg-list");
+  private listDetails = el("details", "kg-details");
+  private listSummary = el("summary");
+  private addForm = el("div", "kg-add");
+  private addIp = el("input", "kg-ip");
+  private addNote = el("input", "kg-note");
+  private addMsg = el("div", "kg-msg");
+  private listSig = "";
+
+  private buildSourceList(): HTMLElement {
+    this.addIp.type = "text";
+    this.addIp.placeholder = "IP or range, e.g. 203.0.113.5";
+    this.addIp.setAttribute("aria-label", "IP address or range to mute");
+    this.addIp.spellcheck = false;
+    this.addNote.type = "text";
+    this.addNote.placeholder = "What is it?";
+    this.addNote.maxLength = 120;
+    this.addNote.setAttribute("aria-label", "Note: what this source is");
+    const addBtn = el("button", "btn kg-addbtn", "Add");
+    addBtn.type = "button";
+    const submit = async (): Promise<void> => {
+      const ip = this.addIp.value.trim();
+      if (!ip) return;
+      addBtn.disabled = true;
+      const err = await this.knownGood.add(ip, this.addNote.value.trim());
+      addBtn.disabled = false;
+      this.addMsg.textContent = err ?? `Muted ${ip}.`;
+      this.addMsg.classList.toggle("bad", err !== null);
+      if (err === null) { this.addIp.value = ""; this.addNote.value = ""; }
+    };
+    addBtn.addEventListener("click", () => void submit());
+    for (const input of [this.addIp, this.addNote]) {
+      input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") void submit(); ev.stopPropagation(); });
+    }
+    const fields = el("div", "kg-fields");
+    fields.append(this.addIp, this.addNote, addBtn);
+    this.addForm.append(fields, this.addMsg);
+    this.addForm.hidden = true;
+    this.listDetails.append(this.listSummary, this.listBox, this.addForm);
+    this.listDetails.hidden = true;
+    return this.listDetails;
+  }
+
+  private renderSourceList(): void {
+    const entries = this.knownGood.entries;
+    const editable = this.knownGood.editable;
+    this.listDetails.hidden = entries.length === 0 && !editable;
+    this.addForm.hidden = !editable;
+    const sig = JSON.stringify([entries, editable]);
+    if (sig === this.listSig) return; // rebuilding every second would eat what is being typed and the hover
+    this.listSig = sig;
+    this.listSummary.textContent = `Sources on the list (${entries.length})`;
+    const rows = entries.slice(0, 200).map((en) => {
+      const row = el("div", "kg-row");
+      const name = el("span", "kg-cidr", en.cidr);
+      const note = el("span", "kg-notetext", en.note || "\u2014");
+      note.title = en.note;
+      const where = el("span", "kg-src", en.source === "analyst" ? `added${en.added_by ? ` by ${en.added_by}` : ""}` : "known_good.yaml");
+      where.title = en.source === "analyst" && en.added_at ? `Added ${new Date(en.added_at).toLocaleString()}` : "Set by an admin in the file; change it there";
+      row.append(name, note, where);
+      if (editable && en.source === "analyst") {
+        const x = el("button", "kg-del", "\u00d7");
+        x.type = "button";
+        x.title = "Remove from the list (its traffic will show again)";
+        x.setAttribute("aria-label", `Remove ${en.cidr} from the list`);
+        x.addEventListener("click", async () => {
+          const err = await this.knownGood.remove(en.cidr);
+          if (err) { this.addMsg.textContent = err; this.addMsg.classList.add("bad"); this.listDetails.open = true; }
+        });
+        row.append(x);
+      }
+      return row;
+    });
+    this.listBox.replaceChildren(...rows);
   }
 
   private setMute(on: boolean): void {
@@ -262,6 +339,7 @@ export class ViewFilters {
   // ---- rendering ----------------------------------------------------------------------
   private render(): void {
     this.renderMuteInfo();
+    this.renderSourceList();
     this.renderBadge();
   }
 

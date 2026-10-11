@@ -142,6 +142,21 @@ not touched.
 
 Replay history and exports live in the browser's memory only (last 10 minutes); closing the page clears them.
 
+### Editing the known-good list from the screen (optional, off by default)
+
+An admin can let analysts add and remove known-good sources in the Known-Good Sources panel, and mute a source straight from an event's details ("Mute this source..."). In `backend/config.yaml`:
+
+```yaml
+known_good:
+  editable: true
+  user_header: X-Forwarded-User   # the header your SSO proxy sets; requests without it are refused
+```
+
+- Screen-added entries go in `backend/data/known_good_added.json`; `known_good.yaml` is never rewritten, and the screen can only remove what it added.
+- Every change is appended to `backend/data/known_good_audit.log` (who, what, when). Keep `backend/data/` on a persistent volume.
+- Muting asks first, warns on Critical events or key systems, and refuses ranges wider than /16 (IPv6 /48); wider ones go in the YAML file.
+- Muting is shared: it hides the source from every analyst's screen and the wall (other screens pick it up within a minute).
+
 ### Working the event log (analyst view)
 
 - **Pop-out window:** hover a log row and click the expand icon, or select a row and press `E`. It shows every field, the raw record, and a note box. Left/right arrows step through the log.

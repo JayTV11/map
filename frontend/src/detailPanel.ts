@@ -1,6 +1,8 @@
 import { GroupSummary } from "./aggregator";
+import { KnownGoodList } from "./knownGood";
+import { openMuteConfirm } from "./muteConfirm";
 import { ReviewStore } from "./reviews";
-import { AssetRef, severityColor, severityLabel, TrafficEvent } from "./types";
+import { AssetRef, isKeyAsset, severityColor, severityLabel, severityLevels, TrafficEvent } from "./types";
 
 /** True for RFC1918 / loopback / link-local IPv4 -- pivots to external
  *  lookup sites are only offered for public addresses so internal IPs
@@ -49,6 +51,8 @@ export interface DetailNav {
 
 export class DetailPanel {
   nav: DetailNav | null = null;
+  /** The shared known-good list; with it (and editing turned on by an admin) a "Mute this source" button appears. */
+  knownGood: KnownGoodList | null = null;
   private store: ReviewStore | null = null;
 
   get reviews(): ReviewStore | null { return this.store; }
@@ -71,6 +75,7 @@ export class DetailPanel {
     // (not also the panel and the pin behind it).
     window.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
+      if (document.querySelector(".mute-confirm")) return; // that dialog closes itself
       if (this.overlay) { e.stopPropagation(); e.preventDefault(); this.collapse(); return; }
       if (!this.section.hidden) this.hide();
     }, true);
@@ -366,6 +371,34 @@ export class DetailPanel {
         setTimeout(() => { kg.textContent = "Copy as known-good entry"; }, 1400);
       });
       actions.append(kg);
+
+      const list = this.knownGood;
+      if (list?.editable) {
+        const mute = document.createElement("button");
+        mute.type = "button";
+        mute.className = "btn";
+        const already = list.find(e.src_ip);
+        mute.textContent = already ? "Source is muted \u2713" : "Mute this source\u2026";
+        mute.disabled = !!already;
+        mute.title = already ? `Already on the known-good list (${already.cidr})` : "Hide this source's traffic from every screen (asks first)";
+        mute.addEventListener("click", () => {
+          const warnings: string[] = [];
+          if (e.severity === severityLevels()[0]?.id) warnings.push(`This event is ${severityLabel(e.severity)}. Muting hides everything from this source, including future events like it.`);
+          if (isKeyAsset(e.dst_asset)) warnings.push(`It is aimed at a key system (${e.dst_asset!.name}).`);
+          if (e.anomaly && e.anomaly.level === "unusual" && !e.anomaly.learning) warnings.push("It is flagged as unusual for this network.");
+          openMuteConfirm({
+            ip: e.src_ip!,
+            defaultNote: e.src_asset?.name ?? "",
+            warnings,
+            submit: async (note) => {
+              const err = await list.add(e.src_ip!, note);
+              if (err === null) this.redraw(); // the button now says "muted"
+              return err;
+            },
+          });
+        });
+        actions.append(mute);
+      }
     }
     body.append(actions);
 

@@ -138,6 +138,7 @@ async function start(): Promise<void> {
   const storage = (() => { try { return window.localStorage; } catch { return null; } })();
   const reviews = new ReviewStore(storage);
   detail.reviews = reviews;
+  detail.knownGood = knownGood;
   const LOG_PREFS = "sightline:log-prefs";
   const currentView = (): ViewState => ({
     ...viewFilters.getView(),

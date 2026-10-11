@@ -76,6 +76,94 @@ with tempfile.TemporaryDirectory() as d:
     api = FastAPI(); api.include_router(route.router)
     r = TestClient(api).get("/api/known-good")
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
-    assert r.json() == {"entries": [{"cidr": "10.9.9.9", "note": "x"}], "loaded": True, "count": 1, "error": None}, r.json()
+    assert r.json() == {"entries": [{"cidr": "10.9.9.9", "note": "x", "source": "file"}], "editable": False, "loaded": True, "count": 1, "error": None}, r.json()
+
+# ---- editing from the screen -------------------------------------------------------------
+import json  # noqa: E402
+import app.known_good as kgmod  # noqa: E402
+from app.known_good import EditRefused  # noqa: E402
+
+
+def refused(fn, *a):
+    try:
+        fn(*a)
+    except EditRefused as exc:
+        return str(exc)
+    raise AssertionError("expected EditRefused")
+
+
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d)
+    yaml_path, added, audit = d / "known_good.yaml", d / "data" / "added.json", d / "data" / "audit.log"
+    write(yaml_path, "sources:\n  - ip: 10.9.9.9\n    note: scanner\n")
+    kg = KnownGoodList(yaml_path, added, audit)
+
+    assert kg.add("203.0.113.5", "  partner   gateway ", "ana@corp") == {"cidr": "203.0.113.5", "note": "partner gateway"}
+    assert kg.matches("203.0.113.5") and kg.matches("10.9.9.9") and not kg.matches("203.0.113.6")
+    assert kg.count == 2
+    ents = {e["cidr"]: e for e in kg.entries()}
+    assert ents["10.9.9.9"]["source"] == "file" and ents["203.0.113.5"]["source"] == "analyst"
+    assert ents["203.0.113.5"]["added_by"] == "ana@corp" and ents["203.0.113.5"]["added_at"]
+    assert yaml_path.read_text() == "sources:\n  - ip: 10.9.9.9\n    note: scanner\n"  # the hand-edited file is never touched
+
+    # survives a restart, and the audit trail records who did what
+    kg2 = KnownGoodList(yaml_path, added, audit)
+    assert kg2.matches("203.0.113.5")
+    kg2.add("10.20.9.0/24", "probes", "bo@corp")
+    assert kg2.matches("10.20.9.77")
+    kg2.remove("203.0.113.5", "bo@corp")
+    assert not kg2.matches("203.0.113.5")
+    log = [json.loads(x) for x in audit.read_text().splitlines()]
+    assert [(x["action"], x["cidr"], x["user"]) for x in log] == [
+        ("add", "203.0.113.5", "ana@corp"), ("add", "10.20.9.0/24", "bo@corp"), ("remove", "203.0.113.5", "bo@corp")]
+
+    # refusals come with plain-English reasons
+    assert "not a valid" in refused(kg2.add, "nope", "", "u")
+    assert "too wide" in refused(kg2.add, "10.0.0.0/8", "", "u")
+    assert "too wide" in refused(kg2.add, "0.0.0.0/0", "", "u")
+    assert "can't be muted" in refused(kg2.add, "127.0.0.1", "", "u")
+    assert "already" in refused(kg2.add, "10.9.9.9", "", "u")
+    assert "known_good.yaml" in refused(kg2.remove, "10.9.9.9", "u")   # the screen can't remove the admin's entries
+    assert "not on the list" in refused(kg2.remove, "198.51.100.1", "u")
+    assert kg2.matches("10.9.9.9")
+
+    # a corrupted added-file doesn't take down the yaml list
+    added.write_text("{broken")
+    kg3 = KnownGoodList(yaml_path, added, audit)
+    assert kg3.matches("10.9.9.9") and kg3.count == 1
+
+# ---- the edit routes ---------------------------------------------------------------------
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d)
+    write(d / "known_good.yaml", "sources: []\n")
+    route.known_good = KnownGoodList(d / "known_good.yaml", d / "added.json", d / "audit.log")
+    api = FastAPI(); api.include_router(route.router)
+    c = TestClient(api)
+    H = {"x-sightline-edit": "1"}
+
+    def settings(**kw):
+        base = {"editable": False, "user_header": "", "min_prefix_v4": 16, "min_prefix_v6": 48}
+        base.update(kw)
+        route._kg_settings = lambda: base
+
+    settings()                                                   # off by default
+    assert c.post("/api/known-good", json={"ip": "203.0.113.5"}, headers=H).status_code == 403
+    settings(editable=True)
+    assert c.post("/api/known-good", json={"ip": "203.0.113.5"}).status_code == 403          # no custom header: refused (cross-site safety)
+    r = c.post("/api/known-good", json={"ip": "203.0.113.5", "note": "x"}, headers=H)
+    assert r.status_code == 200 and r.json()["cidr"] == "203.0.113.5", r.text
+    g = c.get("/api/known-good").json()
+    assert g["editable"] is True and g["entries"][0]["added_by"].startswith("unknown")
+    assert c.post("/api/known-good", json={"ip": "10.0.0.0/8"}, headers=H).status_code == 400
+    assert c.post("/api/known-good", content="ip=1.2.3.4", headers={**H, "content-type": "text/plain"}).status_code == 422
+
+    settings(editable=True, user_header="x-forwarded-user")      # SSO header required
+    assert c.post("/api/known-good", json={"ip": "203.0.113.9"}, headers=H).status_code == 401
+    r = c.post("/api/known-good", json={"ip": "203.0.113.9"}, headers={**H, "x-forwarded-user": "ana@corp"})
+    assert r.status_code == 200
+    assert {e["cidr"]: e.get("added_by") for e in c.get("/api/known-good").json()["entries"]}["203.0.113.9"] == "ana@corp"
+    assert c.delete("/api/known-good?cidr=203.0.113.9", headers=H).status_code == 401
+    assert c.delete("/api/known-good?cidr=203.0.113.9", headers={**H, "x-forwarded-user": "ana@corp"}).status_code == 200
+    assert c.delete("/api/known-good?cidr=203.0.113.9", headers={**H, "x-forwarded-user": "ana@corp"}).status_code == 400
 
 print("known_good: all tests passed")
