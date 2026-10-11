@@ -73,3 +73,7 @@
 .graticule-fine{fill:none;stroke:#13233a;stroke-width:calc(0.3 / var(--zoom, 1));opacity:.6;}
 #map-bg .land{stroke-width:calc(0.5 / var(--zoom, 1));}
 .borders{stroke-width:calc(0.3 / var(--zoom, 1));opacity:.85;}
+
+/* State / province lines: only drawn once zoomed in far enough for them to mean something (and free when hidden). */
+.states{display:none;fill:none;stroke:var(--border);stroke-width:calc(0.4 / var(--zoom, 1));stroke-linejoin:round;opacity:.85;pointer-events:none;}
+#map-wrap.zoom-tier-1 .states{display:inline;}

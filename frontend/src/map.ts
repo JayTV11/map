@@ -1,5 +1,6 @@
 import { WORLD_LAND_PATH } from "./world-path";
 import { WORLD_BORDERS_PATH } from "./world-borders";
+import { WORLD_STATES_PATH } from "./world-states";
 import { COUNTRY_LABELS } from "./country-labels";
 import { CITY_LABELS } from "./city-labels";
 
@@ -110,6 +111,7 @@ export function renderWorldMap(container: HTMLElement, points: PointOfInterest[]
     <use href="#land-shape" class="halo halo-1"/>
     <use href="#land-shape" class="land"/>
     <path class="borders" d="${WORLD_BORDERS_PATH}"/>
+    <path class="states" d="${WORLD_STATES_PATH}"/>
     ${points.map(poiMarker).join("")}
     ${COUNTRY_LABELS.map((c) => countryLabelMarkup(c.name, c.lat, c.lon, c.tier)).join("")}
     ${CITY_LABELS.map((c) => cityLabelMarkup(c.name, c.lat, c.lon, c.tier)).join("")}
