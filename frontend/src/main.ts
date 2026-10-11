@@ -91,9 +91,9 @@ async function start(): Promise<void> {
   const aggregator = new Aggregator();
 
   const TALKER_WINDOW_SEC = 300;
-  const talkerStats = new TalkerStats(TALKER_WINDOW_SEC);
+  const talkerStats = new TalkerStats(TALKER_WINDOW_SEC, 3600); // keeps an hour so the panel can offer longer windows; the wall headline stays on 5 min
   new TalkersPanel(talkerStats, TALKER_WINDOW_SEC, document.getElementById("log-section"));
-  const trendStats = new TrendStats(60);
+  const trendStats = new TrendStats(60, 360);
   new TrendPanel(trendStats, 60, document.getElementById("log-section"));
 
   // Says out loud whether the map is showing live, simulated, or no data. A

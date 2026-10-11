@@ -19,3 +19,8 @@
 .talker-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums;}
 .talker-count{color:var(--text-dim);font-variant-numeric:tabular-nums;flex-shrink:0;}
 .talkers-empty{font-size:11.5px;color:var(--text-dim);padding:4px 0;}
+.win-select{background:transparent;color:var(--text-dim);border:1px solid transparent;border-radius:4px;font:inherit;font-size:10px;padding:1px 2px;cursor:pointer;}
+.win-select:hover,.win-select:focus-visible{border-color:var(--panel-border);color:var(--text);outline:none;}
+.win-select option{background:#0f1a2c;color:#dbe6ff;}
+.win-note{font-size:10px;color:var(--text-dim);margin-top:4px;}
+body.kiosk .win-select{pointer-events:none;appearance:none;}

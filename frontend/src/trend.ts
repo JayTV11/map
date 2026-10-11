@@ -1,3 +1,4 @@
+import { loadWindowPref, partialNote, saveWindowPref } from "./talkers";
 import { severityColor, severityLabel, severityLevels, TrafficEvent } from "./types";
 
 /** Events per minute over the last hour, split by severity.
@@ -18,8 +19,13 @@ export interface TrendPoint {
 
 export class TrendStats {
   private minutes = new Map<number, Record<string, number>>();
+  /** When counting began (ms), so the panel can say when a long window is only partly filled. */
+  readonly since: number;
 
-  constructor(private spanMin = 60) {}
+  /** `spanMin` is the default span; `maxSpanMin` is how much is kept so the panel can offer longer ones. */
+  constructor(private spanMin = 60, private maxSpanMin = spanMin, now: number = Date.now()) {
+    this.since = now;
+  }
 
   record(e: TrafficEvent, now: number): void {
     const m = Math.floor(now / MIN_MS);
@@ -27,16 +33,16 @@ export class TrendStats {
     if (!b) {
       b = {};
       this.minutes.set(m, b);
-      for (const k of this.minutes.keys()) if (k <= m - this.spanMin) this.minutes.delete(k);
+      for (const k of this.minutes.keys()) if (k <= m - this.maxSpanMin) this.minutes.delete(k);
     }
     b[e.severity] = (b[e.severity] ?? 0) + 1;
   }
 
   /** One point per minute, oldest first, ending with the current (partial) minute. */
-  series(now: number): TrendPoint[] {
+  series(now: number, spanMin = this.spanMin): TrendPoint[] {
     const m = Math.floor(now / MIN_MS);
     const out: TrendPoint[] = [];
-    for (let i = this.spanMin - 1; i >= 0; i--) {
+    for (let i = Math.min(spanMin, this.maxSpanMin) - 1; i >= 0; i--) {
       const counts = this.minutes.get(m - i) ?? {};
       let total = 0;
       for (const n of Object.values(counts)) total += n;
@@ -46,15 +52,24 @@ export class TrendStats {
   }
 }
 
+/** Spans the panel offers (minutes). Longer ones only fill as the page stays open. */
+export const TREND_SPANS: { min: number; label: string }[] = [
+  { min: 15, label: "15 min" }, { min: 60, label: "1 hour" }, { min: 180, label: "3 hours" }, { min: 360, label: "6 hours" },
+];
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Sidebar panel: a small stacked-bar chart of TrendStats. Inserts itself above `anchor`. */
 export class TrendPanel {
   private svg = document.createElementNS(SVG_NS, "svg");
   private peak = document.createElement("span");
+  private note = document.createElement("span");
   private timer: number;
+  private spanMin: number;
 
   constructor(private stats: TrendStats, spanMin: number, anchor: HTMLElement | null) {
+    const saved = loadWindowPref().trend;
+    this.spanMin = TREND_SPANS.some((s) => s.min === saved) ? (saved as number) : spanMin;
     const section = document.createElement("div");
     section.className = "panel-section";
     section.id = "trend-section";
@@ -63,19 +78,27 @@ export class TrendPanel {
     head.className = "talkers-head";
     const h2 = document.createElement("h2");
     h2.textContent = "Events per minute";
-    const win = document.createElement("span");
-    win.className = "talkers-window";
-    win.textContent = `last ${spanMin} min`;
+    const win = document.createElement("select");
+    win.className = "win-select";
+    win.setAttribute("aria-label", "Time span for events per minute");
+    for (const s of TREND_SPANS) {
+      const o = document.createElement("option");
+      o.value = String(s.min);
+      o.textContent = `last ${s.label}`;
+      win.append(o);
+    }
+    win.value = String(this.spanMin);
+    win.addEventListener("change", () => { this.spanMin = Number(win.value); saveWindowPref({ trend: this.spanMin }); this.render(); });
     head.append(h2, win);
 
-    this.svg.setAttribute("viewBox", `0 0 ${spanMin * 4} 60`);
     this.svg.setAttribute("preserveAspectRatio", "none");
     this.svg.setAttribute("class", "trend-svg");
     this.svg.setAttribute("role", "img");
-    this.svg.setAttribute("aria-label", "Events per minute over the last hour, by severity");
+    this.svg.setAttribute("aria-label", "Events per minute, by severity");
 
     this.peak.className = "trend-peak";
-    section.append(head, this.svg, this.peak);
+    this.note.className = "win-note";
+    section.append(head, this.svg, this.peak, this.note);
     if (anchor) anchor.before(section);
     else document.body.append(section);
 
@@ -86,7 +109,10 @@ export class TrendPanel {
   dispose(): void { window.clearInterval(this.timer); }
 
   render(now = Date.now()): void {
-    const pts = this.stats.series(now);
+    const pts = this.stats.series(now, this.spanMin);
+    // Keep the bars the same width whatever the span: the box grows with the number of minutes.
+    this.svg.setAttribute("viewBox", `0 0 ${pts.length * 4} 60`);
+    this.note.textContent = partialNote(this.stats.since, now, this.spanMin * 60_000);
     const max = Math.max(1, ...pts.map((p) => p.total));
     // Most severe at the bottom of each bar, so the worst reads as the base.
     const order = [...severityLevels().map((l) => l.id), "unknown"];
