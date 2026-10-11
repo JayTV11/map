@@ -102,7 +102,8 @@ export class ArcEngine {
    *  higher value when one arc stands in for many events (see
    *  aggregator.ts), which draws it thicker and brighter. */
   spawn(event: TrafficEvent, weight = 1): void {
-    if (this.paused) return;
+    // Wall mode always draws: a switch left off in the analyst view must not leave the TV looking like a quiet network.
+    if (this.paused && !document.body.classList.contains("kiosk")) return;
     if (this.hiddenSeverities.has(event.severity)) return;
 
     const w = this.wrap.clientWidth, h = this.wrap.clientHeight;
