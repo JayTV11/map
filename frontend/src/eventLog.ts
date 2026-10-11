@@ -1,7 +1,7 @@
 import { EventGroup } from "./aggregator";
 import { AssetRef, isKeyAsset, severityColor, severityLabel } from "./types";
 
-const MAX_ENTRIES = 60;
+export const MAX_ENTRIES = 60;
 
 function span(className: string, text?: string): HTMLSpanElement {
   const el = document.createElement("span");
@@ -34,13 +34,14 @@ export interface LogRow {
  *  focus.ts). We just report the interaction and hand back the element so
  *  the caller can toggle a `.selected` class on it. */
 export function appendLogEntry(
-  list: HTMLElement,
   group: EventGroup,
   onSelect: (el: HTMLElement) => void,
   onExpand?: (el: HTMLElement) => void,
+  marks?: (group: EventGroup) => { reviewed: boolean; note: boolean },
 ): LogRow {
   const el = document.createElement("div");
   el.className = "log-entry";
+  el.dataset.gid = String(group.id);
   el.tabIndex = 0;
   el.setAttribute("role", "button");
 
@@ -53,9 +54,12 @@ export function appendLogEntry(
   const an = span("log-an");
   const badge = span("log-count");
   const sevLabel = span("log-sevlabel");
+  const noteMark = span("log-note", "\u270e");
+  noteMark.title = "Has a note";
+  noteMark.hidden = true;
   el.append(dot, ips);
   if (dirTag) el.append(dirTag);
-  el.append(an, badge, sevLabel);
+  el.append(noteMark, an, badge, sevLabel);
   if (onExpand) {
     const expand = document.createElement("button");
     expand.type = "button";
@@ -79,13 +83,16 @@ export function appendLogEntry(
       an.className = `log-an an-${a.level}${a.learning ? " an-learning" : ""}`;
       an.title = `${a.learning ? "Provisional " : ""}unusualness ${a.score}/100\n${a.reasons.join("\n")}`;
     }
+    const m = marks?.(g);
+    el.classList.toggle("reviewed", m?.reviewed === true);
+    noteMark.hidden = m?.note !== true;
     badge.hidden = g.count <= 1;
     badge.textContent = `\u00d7${g.count.toLocaleString()}`;
     const hint = "Click to pin this event on the map";
     const head = g.event.signature ? `${g.event.signature}\n` : "";
     const addrs = g.event.src_asset || g.event.dst_asset ? `${g.event.src_ip ?? "?"} \u2192 ${g.event.dst_ip ?? "?"}\n` : "";
     const times = g.count > 1 ? `${g.count} events, last ${new Date(g.lastSeen).toLocaleTimeString()}\n` : "";
-    el.title = `${head}${addrs}${times}${hint}`;
+    el.title = `${head}${addrs}${times}${hint}${m?.reviewed ? "\nReviewed" : ""}`;
   };
   update(group);
 
@@ -96,11 +103,5 @@ export function appendLogEntry(
       onSelect(el);
     }
   });
-  // Newest first, at the top. The list is a normal top-to-bottom column, so the
-  // analyst's scroll position is theirs: the browser keeps the view steady while
-  // rows are added above it, and a list resting at the top simply shows the newest.
-  list.insertBefore(el, list.firstChild);
-  while (list.children.length > MAX_ENTRIES) list.removeChild(list.lastChild!);
-
   return { el, update };
 }

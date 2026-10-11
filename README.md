@@ -142,6 +142,16 @@ not touched.
 
 Replay history and exports live in the browser's memory only (last 10 minutes); closing the page clears them.
 
+### Working the event log (analyst view)
+
+- **Pop-out window:** hover a log row and click the expand icon, or select a row and press `E`. It shows every field, the raw record, and a note box. Left/right arrows step through the log.
+- **Keyboard:** `J` jumps into the log, Up/Down/Home/End move, Enter pins, `E` expands, `R` marks reviewed, `P` pauses the list.
+- **Sort and group** (toolbar above the log): newest, most severe, most unusual, most repeated; group by source country, target or signature.
+- **Pause:** holds new rows back so the list stops moving; the button counts what you are missing.
+- **Reviewed marks and notes:** kept in your browser only (not shared with other analysts). "Hide reviewed" clears finished items away.
+- **Views panel:** Triage, Threat hunter and Manager overview starting points; save your own views (optionally with your panel layout); copy a link that reopens the same search and log order; export/import saved views as a file.
+- Wall mode always shows the plain newest-first log, whatever an analyst set on the same browser.
+
 ## Unusualness score
 
 Every event gets a 0-100 score for how unusual it is compared with what this network has seen before, with the reasons in plain words ("First time seen: source country Kazakhstan"). It shows as a purple number on log rows (40 and up), in the alert detail panel, on the spotlight card for very unusual alerts, and in search: `anomaly_score >= 70` or `anomaly:unusual` (the **Unusual** chip does the same).

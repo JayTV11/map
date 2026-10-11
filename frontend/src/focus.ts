@@ -45,19 +45,27 @@ export class FocusController {
       this.clear();
       return;
     }
+    this.select(group, el);
+  }
 
+  /** Pins `group` (without toggling it off if it already is). */
+  select(group: EventGroup, el: HTMLElement): void {
+    if (this.selectedId === group.id) return;
     this.selectedEl?.classList.remove("selected");
     el.classList.add("selected");
     this.selectedId = group.id;
     this.selectedEl = el;
     this.engine.pin(group.event);
-    this.detail.show(group.event, summarize(group));
+    this.detail.show(group.event, summarize(group), group.key);
 
     const e = group.event;
     this.dot.style.background = severityColor(group.severity);
     this.text.textContent = `${e.src_ip ?? "?"} \u2192 ${e.dst_ip ?? "?"}`;
     this.banner.hidden = false;
   }
+
+  get hasSelection(): boolean { return this.selectedId !== null; }
+  get selectedElement(): HTMLElement | null { return this.selectedEl; }
 
   /** The row's expand button: pin the group if it isn't already, then pop the details out large. */
   open(group: EventGroup, el: HTMLElement): void {
@@ -69,7 +77,7 @@ export class FocusController {
    *  whenever the group receives another event. */
   refresh(group: EventGroup): void {
     if (this.selectedId !== group.id) return;
-    this.detail.show(group.event, summarize(group));
+    this.detail.show(group.event, summarize(group), group.key);
   }
 
   clear(): void {

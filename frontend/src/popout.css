@@ -30,3 +30,10 @@ body.kiosk .log-expand,body.kiosk #detail-expand{display:none;}
   .popout-body.detail-large{display:block;}
   .popout-body.detail-large > .detail-raw{margin-top:14px;}
 }
+
+/* Pop-out stepping */
+.popout-head h2{margin-right:auto;}
+.popout-step{background:#101a28;border:1px solid var(--panel-border);color:var(--text);font-size:20px;line-height:1;width:30px;height:28px;border-radius:5px;cursor:pointer;margin-left:6px;}
+.popout-step:hover{color:var(--text-bright);border-color:var(--accent);}
+.popout-pos{font-size:12px;color:var(--text-dim);font-variant-numeric:tabular-nums;margin:0 6px;min-width:64px;text-align:center;}
+.popout-dialog:focus{outline:none;}

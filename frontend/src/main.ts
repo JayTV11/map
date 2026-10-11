@@ -7,6 +7,7 @@ import "./ingest.css";
 import "./filters.css";
 import "./anomaly.css";
 import "./popout.css";
+import "./logtools.css";
 import { renderWorldMap } from "./map";
 import { ArcEngine } from "./arcs";
 import { connectTrafficSocket } from "./wsClient";
@@ -37,6 +38,11 @@ import { EventHistory, Replayer } from "./replay";
 import { Alerter, AlertGate } from "./alerts";
 import { AnalystTools } from "./analystTools";
 import { PanelLayout } from "./panelLayout";
+import { LogView } from "./logView";
+import { ReviewStore } from "./reviews";
+import { ViewsPanel } from "./viewsPanel";
+import { ViewState, ViewStore, paramsToView, viewToParams } from "./views";
+import { isGroupMode, isSortMode } from "./logOrder";
 
 async function start(): Promise<void> {
   // The severity scale and the home site come from the backend, so everything
@@ -54,9 +60,10 @@ async function start(): Promise<void> {
   wireControls(engine, (file) => void openIngestDialog(file, { onLoaded: () => void monitor.refresh() }));
   const zoom = wireMapZoom(mapViewport, wrap);
 
+  const detail = new DetailPanel();
   const focus = new FocusController(
     engine,
-    new DetailPanel(),
+    detail,
     document.getElementById("focus-banner")!,
     document.getElementById("focus-dot")!,
     document.getElementById("focus-text")!,
@@ -127,15 +134,95 @@ async function start(): Promise<void> {
   });
   const extraFields = new Set<string>(); // unmapped column names seen so far, to catch typos in the search bar
   const viewFilters = new ViewFilters(gate, knownGood, wrap, (name) => extraFields.has(name.toLowerCase()), document.getElementById("detail-section"));
+  // Event log: ordering, pause, keyboard stepping, reviewed marks (logView.ts), and the Views panel.
+  const storage = (() => { try { return window.localStorage; } catch { return null; } })();
+  const reviews = new ReviewStore(storage);
+  detail.reviews = reviews;
+  const LOG_PREFS = "sightline:log-prefs";
+  const currentView = (): ViewState => ({
+    ...viewFilters.getView(),
+    sort: logView.sort,
+    group: logView.group,
+    hideReviewed: logView.hideReviewed,
+  });
+  // Keep the address bar describing what is on screen, so a copied URL (or a bookmark) reopens it.
+  const MANAGED = ["q", "chips", "mute", "sort", "group", "hide"];
+  const syncUrl = (): void => {
+    try {
+      const url = new URL(location.href);
+      for (const k of MANAGED) url.searchParams.delete(k);
+      for (const [k, v] of Object.entries(viewToParams(currentView()))) url.searchParams.set(k, v);
+      window.history.replaceState(null, "", url);
+    } catch { /* read-only location: everything still works, it just is not bookmarkable */ }
+  };
+  const logView: LogView = new LogView(logList, document.getElementById("log-section")!, reviews, {
+    onStep: (rowEl, group) => { if (focus.hasSelection) focus.select(group, rowEl); },
+    onExpand: (rowEl, group) => focus.open(group, rowEl),
+    onSettings: () => {
+      try { storage?.setItem(LOG_PREFS, JSON.stringify({ sort: logView.sort, group: logView.group, hideReviewed: logView.hideReviewed })); } catch { /* ignore */ }
+      syncUrl();
+    },
+  });
+  {
+    // A link's settings win; otherwise the analyst's own last choice.
+    const params = new URLSearchParams(location.search);
+    let prefs: { sort?: unknown; group?: unknown; hideReviewed?: unknown } = {};
+    try { prefs = JSON.parse(storage?.getItem(LOG_PREFS) ?? "{}") ?? {}; } catch { /* ignore */ }
+    const fromUrl = paramsToView(params);
+    logView.setSettings({
+      sort: params.has("sort") ? fromUrl.sort : isSortMode(prefs.sort) ? prefs.sort : "newest",
+      group: params.has("group") ? fromUrl.group : isGroupMode(prefs.group) ? prefs.group : "none",
+      hideReviewed: params.has("hide") ? fromUrl.hideReviewed : prefs.hideReviewed === true,
+    });
+  }
+  detail.nav = {
+    position: () => logView.position(focus.selectedElement),
+    step: (dir) => {
+      const next = logView.neighbor(focus.selectedElement, dir);
+      const g = logView.groupOf(next);
+      if (next && g) { focus.select(g, next); next.scrollIntoView({ block: "nearest" }); }
+    },
+    nextUnreviewed: () => {
+      const next = logView.nextUnreviewed(focus.selectedElement);
+      const g = logView.groupOf(next);
+      if (next && g) { focus.select(g, next); next.scrollIntoView({ block: "nearest" }); }
+    },
+  };
+  let layout: PanelLayout | null = null;
+  const savedViews = new ViewStore(storage);
+  new ViewsPanel({
+    store: savedViews,
+    getView: currentView,
+    applyView: (v) => {
+      viewFilters.setView(v);
+      logView.setSettings({ sort: v.sort, group: v.group, hideReviewed: v.hideReviewed });
+      syncUrl();
+    },
+    getLayout: () => layout!.getState(),
+    applyLayout: (l) => layout?.applyState(l),
+  }).mount(document.getElementById("log-section"));
+  // "J" jumps into the log for keyboard stepping (not while typing, and not on the wall).
+  window.addEventListener("keydown", (ev) => {
+    if ((ev.key !== "j" && ev.key !== "J" && ev.key !== "p" && ev.key !== "P") || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const t = ev.target as HTMLElement | null;
+    if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+    if (document.body.classList.contains("kiosk") || detail.isExpanded) return;
+    ev.preventDefault();
+    if (ev.key === "j" || ev.key === "J") logView.focusFirst();
+    else logView.setPaused(!logView.paused);
+  });
+
   // Re-check what's already on screen when the mute switch, the search or the list changes.
   const recheckLog = (): void => {
     for (const [id, row] of logRows) {
       const g = logGroups.get(id);
       if (g) row.el.hidden = !gate.passes(g.event);
     }
+    logView.recheckHidden();
     viewFilters.refresh();
+    syncUrl();
   };
-  new PanelLayout(document.getElementById("sidebar")!); // fold / resize / reorder the right-hand panels; every panel exists by now
+  layout = new PanelLayout(document.getElementById("sidebar")!); // fold / resize / reorder the right-hand panels; every panel exists by now
   gate.onChange = recheckLog;
   knownGood.onChange = () => gate.listChanged();
   const statEps = document.getElementById("stat-eps")!;
@@ -175,10 +262,13 @@ async function start(): Promise<void> {
     if (arc && !tools.replaying) engine.spawn(arc.event, arc.weight);
 
     if (isNew) {
-      logRows.set(group.id, appendLogEntry(logList, group, (el) => focus.toggle(group, el), (el) => focus.open(group, el)));
+      const row = appendLogEntry(group, (el) => focus.toggle(group, el), (el) => focus.open(group, el), (g) => ({ reviewed: reviews.isReviewed(g.key), note: reviews.hasNote(g.key) }));
+      logRows.set(group.id, row);
       logGroups.set(group.id, group);
+      logView.add(group, row);
     } else {
       logRows.get(group.id)?.update(group);
+      logView.touched();
       focus.refresh(group);
     }
 
@@ -195,8 +285,8 @@ async function start(): Promise<void> {
   setInterval(() => {
     for (const arc of aggregator.tick(Date.now())) if (!tools.replaying && gate.passes(arc.event)) engine.spawn(arc.event, arc.weight);
     if (++ticks % 20 === 0) {
-      for (const [id, row] of logRows) {
-        if (!row.el.isConnected) { logRows.delete(id); logGroups.delete(id); }
+      for (const id of [...logRows.keys()]) {
+        if (!logView.has(id)) { logRows.delete(id); logGroups.delete(id); }
       }
     }
   }, 250);

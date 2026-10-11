@@ -1,4 +1,5 @@
 import { GroupSummary } from "./aggregator";
+import { ReviewStore } from "./reviews";
 import { AssetRef, severityColor, severityLabel, TrafficEvent } from "./types";
 
 /** True for RFC1918 / loopback / link-local IPv4 -- pivots to external
@@ -39,11 +40,27 @@ function formatPorts(ports: number[], limit = 8): string {
   return ports.length > limit ? `${shown} (+${ports.length - limit} more)` : shown;
 }
 
+/** What the pop-out needs from the log to step through events. Wired in main.ts. */
+export interface DetailNav {
+  position(): { index: number; total: number } | null;
+  step(dir: -1 | 1): void;
+  nextUnreviewed(): void;
+}
+
 export class DetailPanel {
+  nav: DetailNav | null = null;
+  private store: ReviewStore | null = null;
+
+  get reviews(): ReviewStore | null { return this.store; }
+  /** Marks and notes are shown and edited in the detail; a change made elsewhere (R in the log) redraws it. */
+  set reviews(r: ReviewStore | null) {
+    this.store = r;
+    r?.subscribe((key) => { if (this.current?.key === key) this.redraw(); });
+  }
   private section = document.getElementById("detail-section")!;
   private body = document.getElementById("detail-body")!;
   onClose?: () => void;
-  private current: { e: TrafficEvent; summary?: GroupSummary } | null = null;
+  private current: { e: TrafficEvent; summary?: GroupSummary; key?: string } | null = null;
   private overlay: HTMLElement | null = null;
   private lastFocus: HTMLElement | null = null;
 
@@ -57,6 +74,19 @@ export class DetailPanel {
       if (this.overlay) { e.stopPropagation(); e.preventDefault(); this.collapse(); return; }
       if (!this.section.hidden) this.hide();
     }, true);
+    // In the large window: left/right step through the log, R marks reviewed. Not while typing a note.
+    window.addEventListener("keydown", (e) => {
+      if (!this.overlay || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.tagName === "SELECT")) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); this.nav?.step(-1); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); this.nav?.step(1); }
+      else if ((e.key === "r" || e.key === "R") && this.current?.key && this.reviews) {
+        e.preventDefault();
+        this.reviews.set(this.current.key, { reviewed: !this.reviews.isReviewed(this.current.key) });
+      }
+    });
+
   }
 
   get isExpanded(): boolean { return this.overlay !== null; }
@@ -102,13 +132,37 @@ export class DetailPanel {
     x.setAttribute("aria-label", "Close");
     x.textContent = "\u00d7";
     x.addEventListener("click", () => this.collapse());
-    head.append(title, x);
+    const pos = this.nav?.position() ?? null;
+    if (pos) {
+      const prev = document.createElement("button");
+      prev.type = "button";
+      prev.className = "popout-step";
+      prev.textContent = "\u2039";
+      prev.title = "Previous event in the log (\u2190)";
+      prev.setAttribute("aria-label", "Previous event");
+      prev.addEventListener("click", () => this.nav?.step(-1));
+      const next = document.createElement("button");
+      next.type = "button";
+      next.className = "popout-step";
+      next.textContent = "\u203a";
+      next.title = "Next event in the log (\u2192)";
+      next.setAttribute("aria-label", "Next event");
+      next.addEventListener("click", () => this.nav?.step(1));
+      const where = document.createElement("span");
+      where.className = "popout-pos";
+      where.textContent = `${pos.index} of ${pos.total}`;
+      head.append(title, prev, where, next, x);
+    } else head.append(title, x);
     const body = document.createElement("div");
     body.className = "popout-body";
     const scroll = dialog.querySelector<HTMLElement>(".popout-body")?.scrollTop ?? 0;
-    this.render(body, e, summary, true);
+    this.render(body, e, summary, true, this.current.key);
     dialog.replaceChildren(head, body);
     body.scrollTop = scroll;
+    if (document.activeElement === document.body || !dialog.contains(document.activeElement)) {
+      dialog.tabIndex = -1;
+      dialog.focus({ preventScroll: true }); // a redraw (stepping) must not drop keyboard focus onto the page behind
+    }
   }
 
   /** Hides the panel. `notify` is false when the caller (FocusController)
@@ -140,20 +194,73 @@ export class DetailPanel {
     return box;
   }
 
+  private reviewBlock(key: string, large: boolean): HTMLElement {
+    const store = this.store!;
+    const box = document.createElement("div");
+    box.className = "detail-review";
+    const row = document.createElement("label");
+    row.className = "dr-row";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = store.isReviewed(key);
+    cb.addEventListener("change", () => store.set(key, { reviewed: cb.checked }));
+    const lbl = document.createElement("span");
+    lbl.textContent = "Reviewed";
+    row.append(cb, lbl);
+    const note = document.createElement("textarea");
+    note.className = "dr-note";
+    note.rows = large ? 3 : 2;
+    note.maxLength = 500;
+    note.placeholder = "Note (kept in this browser only)";
+    note.value = store.get(key)?.note ?? "";
+    let timer = 0;
+    const save = (): void => {
+      window.clearTimeout(timer);
+      if (note.value !== (store.get(key)?.note ?? "")) store.set(key, { note: note.value });
+    };
+    note.addEventListener("input", () => { window.clearTimeout(timer); timer = window.setTimeout(save, 500); });
+    note.addEventListener("blur", save);
+    box.append(row, note);
+    if (large && this.nav) {
+      const next = document.createElement("button");
+      next.type = "button";
+      next.className = "btn dr-next";
+      next.textContent = "Mark reviewed & next \u203a";
+      next.addEventListener("click", () => { save(); store.set(key, { reviewed: true }); this.nav?.nextUnreviewed(); });
+      box.append(next);
+    }
+    return box;
+  }
+
   /** `summary` is present when the event stands for a group of repeats
    *  (see aggregator.ts); it adds the count, first/last seen and the
    *  distinct destination ports hit. */
-  show(e: TrafficEvent, summary?: GroupSummary): void {
+  show(e: TrafficEvent, summary?: GroupSummary, key?: string): void {
     const wasHidden = this.section.hidden;
-    this.current = { e, summary };
+    this.current = { e, summary, key };
     this.section.hidden = false;
     if (wasHidden) this.section.scrollIntoView({ block: "nearest" }); // the column may be scrolled; an opened detail must be seen
-    this.render(this.body, e, summary, false);
-    if (this.overlay) this.renderPopout();
+    this.redraw();
   }
 
+  /** True while a note is being typed in `root`: redrawing then would wipe the text and the cursor. */
+  private typingIn(root: HTMLElement | null): boolean {
+    const a = document.activeElement;
+    return !!root && a instanceof HTMLTextAreaElement && root.contains(a);
+  }
+
+  private redraw(): void {
+    if (!this.current) return;
+    const { e, summary, key } = this.current;
+    const same = this.drawnKey === key;
+    if (!(same && this.typingIn(this.body))) this.render(this.body, e, summary, false, key);
+    if (this.overlay && !(same && this.typingIn(this.overlay))) this.renderPopout();
+    this.drawnKey = key;
+  }
+  private drawnKey: string | undefined;
+
   /** Draws one event into `target`. `large` adds the full source record for the pop-out window. */
-  private render(target: HTMLElement, e: TrafficEvent, summary: GroupSummary | undefined, large: boolean): void {
+  private render(target: HTMLElement, e: TrafficEvent, summary: GroupSummary | undefined, large: boolean, key?: string): void {
     target.replaceChildren();
     const body = target;
     target.classList.toggle("detail-large", large);
@@ -167,6 +274,7 @@ export class DetailPanel {
     badge.style.background = severityColor(e.severity);
     body.append(badge, sig);
     if (e.anomaly) body.append(this.anomalyBlock(e.anomaly));
+    if (key && this.store) body.append(this.reviewBlock(key, large));
 
     const grouped = summary !== undefined && summary.count > 1;
     const rows: [string, string | null][] = [

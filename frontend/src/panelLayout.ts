@@ -80,6 +80,26 @@ export class PanelLayout {
     this.resetBtn.hidden = !dirty;
   }
 
+  /** The layout as it is now, for saving into a view. */
+  getState(): LayoutState {
+    const collapsed: Record<string, boolean> = {};
+    for (const p of this.panels) collapsed[p.id] = p.section.classList.contains("pl-collapsed");
+    return { order: this.currentOrder(), collapsed, heights: { ...this.state.heights } };
+  }
+
+  /** Puts the panels into a saved layout (and remembers it, like any change the analyst makes by hand). */
+  applyState(next: LayoutState): void {
+    this.state = { order: [], collapsed: { ...next.collapsed }, heights: { ...next.heights } };
+    this.applyOrder(mergeOrder(this.defaultOrder, next.order));
+    for (const p of this.panels) {
+      this.setCollapsed(p, next.collapsed[p.id] ?? p.defaultCollapsed, false);
+      const h = next.heights[p.id];
+      if (h !== undefined) this.setHeight(p, h);
+      else this.clearHeight(p);
+    }
+    this.save();
+  }
+
   reset(): void {
     this.state = parseLayout(null);
     try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }

@@ -74,6 +74,18 @@ export class ViewFilters {
     window.setInterval(() => this.render(), 1000);
   }
 
+  /** The search, chips and mute switch as they are now (for saving into a view or a link). */
+  getView(): { q: string; chips: string[]; mute: boolean } {
+    return { q: this.lastGoodText, chips: this.chips.activeIds, mute: this.gate.muteEnabled };
+  }
+
+  /** Sets the search, chips and mute switch together (applying a saved view or preset). */
+  setView(v: { q: string; chips: string[]; mute: boolean }): void {
+    this.chips.setActive(v.chips);
+    this.setMute(v.mute);
+    this.setText(v.q);
+  }
+
   /** Called whenever the gate's state or the list changed. */
   refresh(): void { this.render(); }
 
